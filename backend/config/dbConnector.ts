@@ -16,8 +16,6 @@ const connectDB = async () => {
 		await connect(mongoURI, {
 			useNewUrlParser: true,
 			useUnifiedTopology: true,
-			useFindAndModify: false,
-			useCreateIndex: true,
 		} as any);
 		await sequelize.authenticate();
 		console.log('DB Success');
