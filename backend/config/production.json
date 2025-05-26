@@ -1,0 +1,10 @@
+{
+	"mongoURI": "mongodb://127.0.0.1:25000/calendar",
+	"postgresURI": "postgres://postgres:poiuytre2W!Q@127.0.0.1:25001/calendar",
+	"avatarBaseURI": "https://ui-avatars.com/api/?background=0D8ABC&color=fff&name=",
+	"jwtSecret": "fwm349z#$()8zjfrwm43",
+	"clientOrigin": "https://calendar.simplem.in",
+	"serverPort": 5032,
+	"fromMailId": "prashant@simplem.in",
+	"fromMailName": "Prashant"
+}

@@ -1,0 +1,10 @@
+{
+	"mongoURI": "mongodb://127.0.0.1:27017/calendar",
+	"avatarBaseURI": "https://ui-avatars.com/api/?background=0D8ABC&color=fff&name=",
+	"postgresURI": "postgres://postgres:password@127.0.0.1:5432/calendar",
+	"jwtSecret": "fwm349z#$()8zjfrwm43",
+	"clientOrigin": "scaffold.example.com",
+	"serverPort": 5001,
+	"fromMailId": "prashant@example.com",
+	"fromMailName": "Prashant"
+}

@@ -1,0 +1,22 @@
+{
+	"compilerOptions": {
+		"target": "es6",
+		"module": "commonjs",
+		"esModuleInterop": true,
+		"noImplicitAny": true,
+		"strict": true,
+		"noUnusedLocals": true,
+		"moduleResolution": "node",
+		"sourceMap": true,
+		"outDir": "dist",
+		"baseUrl": ".",
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"typeRoots": ["@types", "./node_modules/@types"],
+		"paths": {
+			"*": ["node_modules/*"]
+		}
+	},
+	"include": ["./**/*"],
+	"exclude": ["node_modules", "front"]
+}
