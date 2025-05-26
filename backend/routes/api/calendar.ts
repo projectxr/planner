@@ -45,7 +45,7 @@ router.post('/createPersonal', userAuth, async (req: Request, res: Response) => 
 		let { uid, calendarName, description, color, isPrivate, settings } = req.body;
 		let user;
 		if (req.user && req.user.id !== undefined && req.user.id !== null)
-			user = await User.findById(Types.ObjectId(req.user.id));
+			user = await User.findById(new Types.ObjectId(req.user.id));
 		if (!user) {
 			return res.status(ErrorCode.HTTP_NOT_FOUND).json(errorWrapper('User Not Found'));
 		}
@@ -79,7 +79,7 @@ router.post('/createPersonal', userAuth, async (req: Request, res: Response) => 
 			],
 		});
 		await calendar.save();
-		user.myCalendars.push({ calendar: calendar._id, color: calendar.color });
+		user.myCalendars.push({ calendar: calendar._id, color: calendar.color } as any);
 		await user.save();
 		res.json(calendar);
 	} catch (err) {
@@ -166,14 +166,14 @@ router.post('/addUser', userAuth, async (req: Request, res: Response) => {
 		let { uid, userName } = req.body;
 		let requestUserData;
 		if (req.user && req.user.id !== undefined && req.user.id !== null)
-			requestUserData = await User.findById(Types.ObjectId(req.user.id));
+			requestUserData = await User.findById(new Types.ObjectId(req.user.id));
 		if (!requestUserData) {
 			return res.status(ErrorCode.HTTP_NOT_FOUND).json(errorWrapper('User Not Found'));
 		} else {
 			//we could return for permission not enough by performing permission check, but make function for that
 		}
 		let user = await User.findOne({ userName });
-		let calendar = await Calendar.findOne({ uid });
+		let calendar: any = await Calendar.findOne({ uid });
 
 		if (!calendar) {
 			return res
@@ -182,7 +182,7 @@ router.post('/addUser', userAuth, async (req: Request, res: Response) => {
 		} else if (!user) {
 			return res.status(ErrorCode.HTTP_NOT_FOUND).json({ errors: { msg: "User Doesn't Exist" } });
 		} else if (
-			calendar.users.findIndex((userObj: any) => userObj.user == user._id.toString()) !== -1
+			calendar.users.findIndex((userObj: any) => userObj?.user == user?._id.toString()) !== -1
 		) {
 			return res
 				.status(ErrorCode.HTTP_BAD_REQ)
@@ -195,7 +195,7 @@ router.post('/addUser', userAuth, async (req: Request, res: Response) => {
 			hasWriteAccess: true,
 		});
 		await calendar.save();
-		user.myCalendars.push({ calendar: calendar._id });
+		user.myCalendars.push(calendar._id);
 		await user.save();
 		res.json(calendar.users[userIndex]);
 	} catch (err) {

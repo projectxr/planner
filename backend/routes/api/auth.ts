@@ -49,7 +49,7 @@ router.post(
 			const avatar = config.get('avatarBaseURI') + name.replace(' ', '+');
 			const verificationToken = crypto.randomBytes(128).toString('hex');
 
-			let calendar = await Calendar.findOne({ uid });
+			let calendar: any = await Calendar.findOne({ uid });
 			if (!calendar || calendar.owner) {
 				let newUid = nanoid();
 				calendar = await Calendar.findOne({ uid: newUid });
@@ -142,7 +142,7 @@ router.post(
 			};
 			sign(payload, config.get('jwtSecret'), { expiresIn: '30 days' }, (err, token) => {
 				if (err) throw err;
-				res.json({ token, emailVerified: user.emailVerified });
+				res.json({ token, emailVerified: user?.emailVerified });
 			});
 		} catch (err) {
 			console.log('Login error' + err);
@@ -174,7 +174,6 @@ router.post(
 			}
 			const verificationToken = crypto.randomBytes(128).toString('hex');
 			user.verificationToken = verificationToken;
-			user.verificationValid = Date.now() + 43200000;
 			await sendMail(email, forgot(verificationToken));
 			await user.save();
 			res.json({ success: 'Email Sent!' });
@@ -197,14 +196,7 @@ router.get('/confirm/:verificationToken', async (req: Request, res: Response) =>
 			return res.status(ErrorCode.HTTP_BAD_REQ).json(errorWrapper('Token Invalid'));
 		}
 
-		if (Date.now() - Date.parse(user.verificationValid) > 0) {
-			user.verificationToken = '';
-			user.verificationValid = null;
-			await user.save();
-			return res.status(ErrorCode.HTTP_FORBIDDEN).json(errorWrapper('Token Expired'));
-		}
 		user.verificationToken = '';
-		user.verificationValid = null;
 		user.emailVerified = true;
 		await user.save();
 		return res.json({ emailVerification: !user.emailVerified });
@@ -219,9 +211,9 @@ router.get('/confirm/:verificationToken', async (req: Request, res: Response) =>
 // @access      Private
 router.get('/', userAuth, async (req: Request, res: Response) => {
 	try {
-		let user = {};
+		let user: any;
 		if (req.user && req.user.id !== undefined && req.user.id !== null)
-			user = await User.findById(Types.ObjectId(req.user.id)).populate(
+			user = await User.findById(new Types.ObjectId(req.user.id)).populate(
 				'myCalendar myCalendars.calendar'
 			);
 		if (Object.keys(user).length === 0) {
@@ -240,13 +232,13 @@ router.get('/', userAuth, async (req: Request, res: Response) => {
 router.post('/getData', userAuth, async (req: Request, res: Response) => {
 	try {
 		const { users } = req.body;
-		let user = {};
+		let user: any;
 		if (req.user && req.user.id !== undefined && req.user.id !== null)
-			user = await User.findById(Types.ObjectId(req.user.id));
+			user = await User.findById(new Types.ObjectId(req.user.id));
 		if (Object.keys(user).length === 0) {
 			return res.status(ErrorCode.HTTP_NOT_FOUND).json(errorWrapper('User Not Found'));
 		}
-		let userObjectIds = users.map((userId: string) => Types.ObjectId(userId));
+		let userObjectIds = users.map((userId: string) => new Types.ObjectId(userId));
 		const userData = await User.find({
 			_id: {
 				$in: userObjectIds,
@@ -277,10 +269,10 @@ router.post('/update', userAuth, async (req: Request, res: Response) => {
 		if (updateObject.name) {
 			updateObject.avatar = config.get('avatarBaseURI') + name.replace(' ', '+');
 		}
-		let user = {};
+		let user: any;
 		if (req.user && req.user.id !== undefined && req.user.id !== null)
 			user = await User.findByIdAndUpdate(
-				Types.ObjectId(req.user.id),
+				new Types.ObjectId(req.user.id),
 				{
 					$set: {
 						...updateObject,

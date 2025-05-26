@@ -36,7 +36,9 @@ const transformEventForClient = (event: any) => {
 router.get('/agenda', userAuth, async (req: Request, res: Response) => {
 	try {
 		// Get user's calendars
-		const user = await User.findById(Types.ObjectId(req.user!.id)).populate('myCalendars.calendar');
+		const user = await User.findById(new Types.ObjectId(req.user!.id)).populate(
+			'myCalendars.calendar'
+		);
 		if (!user) {
 			return res.status(ErrorCode.HTTP_UNAUTHORIZED).json({
 				errors: { msg: 'User not found' },
@@ -160,7 +162,7 @@ router.get('/:uid', calendarUserAuth, async (req: Request, res: Response) => {
 				// For now, assuming status is a single value or an array if client sends it like that
 				whereClause.status = status;
 			} else {
-        // Default statuses for unscheduled items if not specified
+				// Default statuses for unscheduled items if not specified
 				whereClause.status = { [Op.in]: ['todo', 'in_progress'] };
 			}
 		} else {
@@ -170,7 +172,6 @@ router.get('/:uid', calendarUserAuth, async (req: Request, res: Response) => {
 				whereClause.status = status;
 			}
 		}
-
 
 		if (priority) {
 			whereClause.priority = priority;
