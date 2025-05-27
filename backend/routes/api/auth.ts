@@ -40,7 +40,7 @@ router.post(
 			//**********************************Handler Code**********************************/
 			const { email, name, password, userName, uid: requestedCalendarUid } = req.body;
 
-			let existingUser = await User.findOne({ $or: [{ email }, { userName }] });
+			let existingUser = await User.findOne({ email });
 			if (existingUser) {
 				return res.status(ErrorCode.HTTP_BAD_REQ).json(errorWrapper('User Already Exists'));
 			}
@@ -59,7 +59,6 @@ router.post(
 				verificationToken,
 				userName,
 				verificationValid: Date.now() + 43200000,
-				// myCalendar and myCalendars will be set after calendar handling
 			});
 			await newUser.save();
 			const userId = newUser._id;
@@ -86,7 +85,6 @@ router.post(
 			}
 
 			if (!calendarToUse) {
-				// Create a new calendar if no suitable existing one is found or no uid provided
 				let newGeneratedUid = nanoid();
 				let calendarWithGeneratedUid = await Calendar.findOne({ uid: newGeneratedUid });
 				while (calendarWithGeneratedUid) {
@@ -96,29 +94,32 @@ router.post(
 				calendarToUse = new Calendar({
 					uid: newGeneratedUid,
 					calendarName: 'Simple Calendar',
-					owner: userId, // Set owner at creation
-					collaborators: [{
-						user: userId,
-						role: 'admin', // Or 'owner' if you add it to the enum
-						canRead: true,
-						canWrite: true,
-						canDelete: true,
-						canManageUsers: true,
-					}],
+					owner: userId,
+					collaborators: [
+						{
+							user: userId,
+							role: 'admin', // Or 'owner' if you add it to the enum
+							canRead: true,
+							canWrite: true,
+							canDelete: true,
+							canManageUsers: true,
+						},
+					],
 				});
 				finalCalendarUid = newGeneratedUid;
 			}
-
 
 			await calendarToUse.save();
 
 			// Update user with calendar reference
 			newUser.myCalendar = calendarToUse._id;
-			newUser.myCalendars = [{
-				calendar: calendarToUse._id,
-				color: '#0693E3', // Default color from UserSchema
-				isVisible: true, // Default visibility from UserSchema
-			}];
+			newUser.myCalendars = [
+				{
+					calendar: calendarToUse._id,
+					color: '#0693E3', // Default color from UserSchema
+					isVisible: true, // Default visibility from UserSchema
+				},
+			];
 			await newUser.save();
 
 			sendMail(email, confirm(verificationToken));
