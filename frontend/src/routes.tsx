@@ -2,7 +2,7 @@ import React from 'react';
 
 const SignInPage = React.lazy(() => import('@/pages/SignInPage'));
 const SignUpPage = React.lazy(() => import('@/pages/SignUpPage'));
-const CalendarView = React.lazy(() => import('@/components/calendar/CalendarView'));
+const CalendarPage = React.lazy(() => import('@/pages/CalendarPage'));
 
 export interface RouteConfig {
 	path: string;
@@ -22,12 +22,12 @@ const routes: RouteConfig[] = [
 	},
 	{
 		path: '/home',
-		element: <CalendarView />,
+		element: <CalendarPage />,
 		private: true,
 	},
 	{
 		path: '/:calendarId',
-		element: <CalendarView />,
+		element: <CalendarPage />,
 		private: true,
 	},
 	{
