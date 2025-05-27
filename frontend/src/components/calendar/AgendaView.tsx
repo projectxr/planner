@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,7 @@ import {
 	CheckCircle,
 	Activity,
 } from 'lucide-react';
-import { cn, formatDateTime, formatTime } from '@/lib/utils';
+import { cn, formatTime } from '@/lib/utils';
 import { PRIORITY_COLORS, STATUS_COLORS } from '@/lib/types';
 import { useEvents } from '@/contexts/EventContext';
 

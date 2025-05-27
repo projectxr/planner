@@ -16,7 +16,7 @@ interface UserContextType {
 	loginUser: (credentials: AuthCredentials) => Promise<void>;
 	registerUser: (userData: AuthCredentials) => Promise<void>;
 	logoutUser: () => void;
-	refreshUser: () => Promise<void>; // Added refreshUser
+	refreshUser: () => Promise<void>;
 	updateCalendarDetails: (
 		calendarUid: string,
 		updates: Partial<
@@ -69,7 +69,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
 		if (currentToken) {
 			await fetchUserDetails(currentToken);
 		} else {
-			// Handle case where token might have been removed by another tab/action
 			setUser(null);
 			setToken(null);
 			delete apiClient.defaults.headers.common['X-AUTH-TOKEN'];
@@ -150,11 +149,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
 					delete payload.name;
 				}
 
-				const response = await apiClient.post('/api/calendar/update', payload);
-				// const updatedCalendarData: CalendarData = response.data; // Backend sends back the updated calendar
-				// No need to manually merge here, refreshUser will fetch the latest user object
-				// which will include the updated calendar details from the backend.
-				await refreshUser(); // Refresh user data to get the latest calendar details
+				await apiClient.post('/api/calendar/update', payload);
+				await refreshUser();
 				setError(null);
 			} catch (err: any) {
 				console.error('Failed to update calendar details:', err);
@@ -175,7 +171,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 		loginUser,
 		registerUser,
 		logoutUser,
-		refreshUser, // Added refreshUser
+		refreshUser,
 		updateCalendarDetails,
 	};
 

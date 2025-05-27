@@ -1,13 +1,4 @@
-import {
-	CalendarHeart,
-	Search,
-	ChevronDown,
-	Home,
-	List,
-	Settings,
-	PlusSquare,
-	Calendar,
-} from 'lucide-react';
+import { Search, ChevronDown, Home, List, Settings, PlusSquare, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -33,9 +24,9 @@ interface HeaderProps {
 	onToggleSidebar: () => void;
 }
 
-export function Header({ onCreateEvent, onCreateTodo, onToggleSidebar }: HeaderProps) {
-	const { filters, setFilters, syncStatus, refreshAll } = useCalendarEvents(); // Added syncStatus and refreshAll
-	const { calendars, activeCalendar, setActiveCalendar } = useCalendars(); // Added setActiveCalendar
+export function Header({ onToggleSidebar }: HeaderProps) {
+	const { filters, setFilters, syncStatus, refreshAll } = useCalendarEvents();
+	const { calendars, activeCalendar, setActiveCalendar } = useCalendars();
 	const navigate = useNavigate();
 	const location = useLocation();
 	const [searchTerm, setSearchTerm] = useState(filters.search || '');
@@ -52,14 +43,11 @@ export function Header({ onCreateEvent, onCreateTodo, onToggleSidebar }: HeaderP
 		setFilters({ ...filters, search: '' });
 	};
 
-	// Updated calendar selection to properly integrate with unified context
 	const handleCalendarSelect = (calendarId: string | null) => {
 		if (calendarId === null) {
-			// Clear active calendar when going to "All Calendars" - this is crucial!
 			setActiveCalendar(null);
 			navigate('/home');
 		} else {
-			// Navigate to specific calendar and let CalendarContext handle setting active calendar
 			navigate(`/${calendarId}`);
 		}
 	};
@@ -74,7 +62,6 @@ export function Header({ onCreateEvent, onCreateTodo, onToggleSidebar }: HeaderP
 		setIsCalendarModalOpen(true);
 	};
 
-	// Handle refresh all calendars
 	const handleRefreshAll = async () => {
 		await refreshAll(true);
 	};

@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Calendar, ViewsProps, dateFnsLocalizer, SlotInfo } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
-import { CalendarEvent, CalendarViewType } from '@/lib/types';
+import { CalendarEvent } from '@/lib/types';
 import { format, startOfWeek, getDay, parse, parseISO } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -82,7 +82,6 @@ export default function CalendarView({ className }: CalendarViewProps) {
 	const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 	const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
 	const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-	const [draggingEventId, setDraggingEventId] = useState<string | null>(null); // Added this line
 
 	const calendarViews: ViewsProps<object, object> = useMemo(
 		() => ({
@@ -128,7 +127,6 @@ export default function CalendarView({ className }: CalendarViewProps) {
 
 	const handleDragStart = useCallback(
 		(event: CalendarEvent) => {
-			setDraggingEventId(event.id);
 			setDraggedItem(event);
 		},
 		[setDraggedItem]
@@ -155,7 +153,6 @@ export default function CalendarView({ className }: CalendarViewProps) {
 
 	const handleDragOver = useCallback(
 		(event: React.DragEvent) => {
-			setDraggingEventId(null);
 			setDraggedItem(null);
 			if (dragType === 'unscheduled-task') {
 				event.preventDefault();

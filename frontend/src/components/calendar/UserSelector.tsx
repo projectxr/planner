@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -69,7 +69,7 @@ export default function UserSelector({
 	// Update selected users when value changes
 	useEffect(() => {
 		// In a real app, you'd fetch user details by IDs
-		const users = value.map((userId, index) => ({
+		const users = value.map((userId, _) => ({
 			id: userId,
 			name: userId, // Placeholder - should fetch actual user data
 			userName: userId,

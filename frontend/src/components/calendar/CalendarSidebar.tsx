@@ -18,13 +18,10 @@ import {
 	Settings,
 	Users,
 	MoreHorizontal,
-	Eye,
-	EyeOff,
 	Calendar,
 	Palette,
 	Loader2,
 	Home,
-	List,
 	ChevronRight,
 	Star,
 	StarOff,
@@ -33,13 +30,11 @@ import {
 	Share2,
 	Download,
 	Upload,
-	FolderPlus,
 	CheckSquare,
 	Square,
 	Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-// import { useUser } from '@/contexts/UserContext'; // No longer directly needed for myCalendars list
 import { useCalendarEvents } from '@/contexts/EventContext';
 import { useCalendars } from '@/contexts/CalendarContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -55,18 +50,13 @@ interface MyCalendarItem {
 	group?: string;
 }
 
-interface CalendarSidebarProps {
-	calendarId?: string;
-}
-
 type CalendarGroup = {
 	name: string;
 	calendars: MyCalendarItem[];
 	isExpanded: boolean;
 };
 
-export default function CalendarSidebar({ calendarId }: CalendarSidebarProps) {
-	// const { user } = useUser(); // User object no longer directly needed here for calendars
+export default function CalendarSidebar() {
 	const {
 		visibleCalendars,
 		toggleCalendarVisibility,
@@ -76,7 +66,6 @@ export default function CalendarSidebar({ calendarId }: CalendarSidebarProps) {
 		refreshCalendar,
 		filteredTasks,
 		openEditModal,
-		unscheduleEvent,
 	} = useCalendarEvents();
 	const { activeCalendar, setActiveCalendar, calendars } = useCalendars();
 	const { toast } = useToast();
@@ -94,12 +83,9 @@ export default function CalendarSidebar({ calendarId }: CalendarSidebarProps) {
 	const [isDragOver, setIsDragOver] = useState(false);
 	const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
 
-	// Use calendars from CalendarContext directly
 	const myDisplayCalendars: MyCalendarItem[] = calendars.map(calData => ({
-		calendar: calData, // calData is of type CalendarData from useCalendars()
-		color: calData.color || '#3174ad', // Ensure color is correctly populated from CalendarData
-		// isVisible and isFavorite will be determined using their respective states/logic below,
-		// keyed by calData.uid
+		calendar: calData,
+		color: calData.color || '#3174ad',
 	}));
 	const isOnHomePage = location.pathname === '/home' || location.pathname === '/';
 

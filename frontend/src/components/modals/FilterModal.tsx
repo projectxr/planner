@@ -1,4 +1,3 @@
-import React from 'react';
 import { useForm } from 'react-hook-form';
 import {
 	Dialog,
@@ -21,11 +20,11 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { CalendarIcon, Filter, X, RotateCcw } from 'lucide-react';
+import { CalendarIcon, Filter, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-import { FilterOptions, PriorityLevel, EventStatus, TaskCategory } from '@/lib/types';
+import { FilterOptions } from '@/lib/types';
 import { useEvents } from '@/contexts/EventContext';
 
 interface FilterModalProps {

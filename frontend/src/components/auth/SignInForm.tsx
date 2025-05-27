@@ -26,12 +26,12 @@ const SignInForm = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto p-8 border rounded-lg shadow-lg">
-      <h2 className="text-2xl font-bold text-center">Sign In</h2>
+    <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto p-8 border rounded-lg shadow-lg bg-white dark:bg-gray-800 dark:border-gray-700">
+      <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white">Sign In</h2>
       {formError && <p className="text-red-500 text-center">{formError}</p>}
       {contextError && !formError && <p className="text-red-500 text-center">{contextError}</p>}
       <div>
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email" className="text-gray-700 dark:text-gray-300">Email</Label>
         <Input
           id="email"
           type="email"
@@ -41,7 +41,7 @@ const SignInForm = () => {
         />
       </div>
       <div>
-        <Label htmlFor="password">Password</Label>
+        <Label htmlFor="password" className="text-gray-700 dark:text-gray-300">Password</Label>
         <Input
           id="password"
           type="password"
@@ -50,10 +50,10 @@ const SignInForm = () => {
           required
         />
       </div>
-      <Button type="submit" className="w-full" disabled={loading}>
+      <Button type="submit" className="w-full bg-blue-500 hover:bg-blue-600 text-white dark:bg-blue-700 dark:hover:bg-blue-800" disabled={loading}>
         {loading ? 'Signing In...' : 'Sign In'}
       </Button>
-       <p className="text-center text-sm">
+       <p className="text-center text-sm text-gray-600 dark:text-gray-400">
         Don't have an account?{' '}
         <Button variant="link" onClick={() => navigate('/signup')} className="p-0 h-auto">Sign Up</Button>
       </p>

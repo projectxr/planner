@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +34,6 @@ export default function DependencySelector({
 	const defaultPlaceholder =
 		type === 'dependsOn' ? 'Select events this depends on...' : 'Select events this blocks...';
 
-	// Fetch available events
 	useEffect(() => {
 		const fetchEvents = async () => {
 			if (!calendarUid) return;

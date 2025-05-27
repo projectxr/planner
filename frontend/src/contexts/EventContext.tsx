@@ -636,18 +636,16 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 
 					if (visibleCalendarUids.length === 0) {
 						console.log('No visible calendars found');
-						// Conditional state update
 						setEvents(prevEvents => {
-							const currentContextActiveUid = activeCalendar?.uid;
 							const currentlyInAllCalendarsView = isAllCalendarsView();
 							if (fetchInitiatedInAllCalendarsView && currentlyInAllCalendarsView) {
 								return [];
 							}
-							return prevEvents; // Stale, keep previous
+							return prevEvents;
 						});
 						setSyncStatus('success');
 						setLastSyncTime(new Date());
-						if (!silent) setLoading(false); // Ensure loading is handled
+						if (!silent) setLoading(false);
 						return;
 					}
 
@@ -785,15 +783,6 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 
 					if (visibleCalendarUids.length === 0) {
 						console.log('No visible calendars found for tasks');
-						// Conditional state update
-						setTasks(prevTasks => {
-							const currentContextActiveUid = activeCalendar?.uid;
-							const currentlyInAllCalendarsView = isAllCalendarsView();
-							if (fetchInitiatedInAllCalendarsView && currentlyInAllCalendarsView) {
-								return [];
-							}
-							return prevTasks; // Stale, keep previous
-						});
 						if (!silent) {
 							setSyncStatus('success');
 							setLastSyncTime(new Date());

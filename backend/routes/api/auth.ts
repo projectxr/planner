@@ -38,64 +38,100 @@ router.post(
 
 		try {
 			//**********************************Handler Code**********************************/
+			const { email, name, password, userName, uid: requestedCalendarUid } = req.body;
 
-			const { email, name, password, userName, uid } = req.body;
-			let user = await User.findOne({ $or: [{ email }, { userName }] });
-			const salt = await genSalt(10);
-
-			if (user) {
+			let existingUser = await User.findOne({ $or: [{ email }, { userName }] });
+			if (existingUser) {
 				return res.status(ErrorCode.HTTP_BAD_REQ).json(errorWrapper('User Already Exists'));
 			}
+
+			const salt = await genSalt(10);
+			const hashedPassword = await hash(password, salt);
 			const avatar = config.get('avatarBaseURI') + name.replace(' ', '+');
 			const verificationToken = crypto.randomBytes(128).toString('hex');
 
-			let calendar: any = await Calendar.findOne({ uid });
-			if (!calendar || calendar.owner) {
-				let newUid = nanoid();
-				calendar = await Calendar.findOne({ uid: newUid });
-				while (calendar) {
-					newUid = nanoid();
-					calendar = await Calendar.findOne({ uid: newUid });
-				}
-				calendar = new Calendar({
-					uid: newUid,
-					calendarName: 'Simple Calendar',
-				});
-				await calendar.save();
-			}
-			user = new User({
+			// Create User first to get user._id
+			let newUser = new User({
 				name,
 				email,
-				password,
+				password: hashedPassword,
 				avatar,
 				verificationToken,
 				userName,
-				myCalendar: calendar._id,
-				myCalendars: [{ calendar: calendar._id }],
 				verificationValid: Date.now() + 43200000,
+				// myCalendar and myCalendars will be set after calendar handling
 			});
-			user.password = await hash(password, salt);
+			await newUser.save();
+			const userId = newUser._id;
 
-			await user.save();
-			calendar.owner = user._id;
-			calendar.users.push({
-				user: user._id,
-				hasReadAccess: true,
-				hasWriteAccess: true,
-			});
-			await calendar.save();
+			let calendarToUse: any;
+			let finalCalendarUid: string;
+
+			if (requestedCalendarUid) {
+				const potentialCalendar = await Calendar.findOne({ uid: requestedCalendarUid });
+				if (potentialCalendar && !potentialCalendar.owner) {
+					// Claim existing unowned calendar
+					potentialCalendar.owner = userId;
+					potentialCalendar.collaborators.push({
+						user: userId,
+						role: 'admin', // Or 'owner' if you add it to the enum
+						canRead: true,
+						canWrite: true,
+						canDelete: true,
+						canManageUsers: true,
+					});
+					calendarToUse = potentialCalendar;
+					finalCalendarUid = potentialCalendar.uid;
+				}
+			}
+
+			if (!calendarToUse) {
+				// Create a new calendar if no suitable existing one is found or no uid provided
+				let newGeneratedUid = nanoid();
+				let calendarWithGeneratedUid = await Calendar.findOne({ uid: newGeneratedUid });
+				while (calendarWithGeneratedUid) {
+					newGeneratedUid = nanoid();
+					calendarWithGeneratedUid = await Calendar.findOne({ uid: newGeneratedUid });
+				}
+				calendarToUse = new Calendar({
+					uid: newGeneratedUid,
+					calendarName: 'Simple Calendar',
+					owner: userId, // Set owner at creation
+					collaborators: [{
+						user: userId,
+						role: 'admin', // Or 'owner' if you add it to the enum
+						canRead: true,
+						canWrite: true,
+						canDelete: true,
+						canManageUsers: true,
+					}],
+				});
+				finalCalendarUid = newGeneratedUid;
+			}
+
+
+			await calendarToUse.save();
+
+			// Update user with calendar reference
+			newUser.myCalendar = calendarToUse._id;
+			newUser.myCalendars = [{
+				calendar: calendarToUse._id,
+				color: '#0693E3', // Default color from UserSchema
+				isVisible: true, // Default visibility from UserSchema
+			}];
+			await newUser.save();
+
 			sendMail(email, confirm(verificationToken));
-
 			const payload = {
 				user: {
-					id: user.id,
+					id: userId,
 					verified: false,
 				},
 			};
 
 			sign(payload, config.get('jwtSecret'), { expiresIn: '30 days' }, (err, token) => {
 				if (err) throw err;
-				res.json({ token, uid: calendar.uid });
+				res.json({ token, uid: finalCalendarUid });
 			});
 		} catch (err) {
 			console.error(`Err register:`, err);
