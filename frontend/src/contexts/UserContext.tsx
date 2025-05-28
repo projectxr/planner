@@ -23,6 +23,7 @@ interface UserContextType {
 			Pick<CalendarData, 'calendarName' | 'description' | 'color' | 'isPrivate' | 'settings'>
 		>
 	) => Promise<void>;
+	updateUserName: (name: string) => Promise<void>; // Added updateUserName
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -160,8 +161,25 @@ export function UserProvider({ children }: { children: ReactNode }) {
 				setLoading(false);
 			}
 		},
-		[user]
+		[user, refreshUser] // Added refreshUser to dependencies
 	);
+
+	const updateUserName = useCallback(async (name: string) => {
+		if (!user) throw new Error('User not available for updating name.');
+		setLoading(true);
+		setError(null);
+		try {
+			await apiClient.put('/api/auth/user', { name }); // Assuming PUT endpoint for user update
+			await refreshUser(); // Refresh user data to get updated name
+			setError(null);
+		} catch (err: any) {
+			console.error('Failed to update user name:', err);
+			setError(err.response?.data?.errors?.msg || 'Failed to update user name');
+			throw err;
+		} finally {
+			setLoading(false);
+		}
+	}, [user, refreshUser]);
 
 	const value = {
 		user,
@@ -173,6 +191,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 		logoutUser,
 		refreshUser,
 		updateCalendarDetails,
+		updateUserName, // Added updateUserName to context value
 	};
 
 	return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

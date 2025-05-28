@@ -1,6 +1,7 @@
-import { Search, ChevronDown, Home, List, Settings, PlusSquare, Calendar } from 'lucide-react';
+import { Search, ChevronDown, Home, List, Settings, PlusSquare, Calendar, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -14,8 +15,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useCalendarEvents } from '@/contexts/EventContext'; // Updated import
 import { useCalendars } from '@/contexts/CalendarContext';
+import { useUser } from '@/contexts/UserContext'; // Added UserContext
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // Added useEffect
 import CalendarModal from '@/components/modals/CalendarModal';
 
 interface HeaderProps {
@@ -29,10 +31,19 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 	const { calendars, activeCalendar, setActiveCalendar } = useCalendars();
 	const navigate = useNavigate();
 	const location = useLocation();
+	const { user, logoutUser, updateUserName } = useUser(); // Changed userDetails to user
 	const [searchTerm, setSearchTerm] = useState(filters.search || '');
 	const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
 	const [editingCalendarId, setEditingCalendarId] = useState<string | undefined>(undefined);
+	const [nameOfUser, setNameOfUser] = useState('');
+	const [isUserPopoverOpen, setIsUserPopoverOpen] = useState(false);
 
+
+	useEffect(() => {
+		if (user) {
+			setNameOfUser(user.name || '');
+		}
+	}, [user]);
 	const handleSearch = (e: React.FormEvent) => {
 		e.preventDefault();
 		setFilters({ ...filters, search: searchTerm });
@@ -41,6 +52,24 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 	const handleClearSearch = () => {
 		setSearchTerm('');
 		setFilters({ ...filters, search: '' });
+	};
+
+	const onUserNameChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
+		setNameOfUser(e.target.value);
+	};
+
+	const onUserNameSaved = async () => {
+		if (user && nameOfUser !== user.name) { // Changed userDetails to user
+			await updateUserName(nameOfUser);
+			// Optionally, close popover or show success message
+		}
+	};
+
+	const showSignOutModal = () => {
+		// Implement sign out modal or direct sign out
+		logoutUser();
+		navigate('/signin');
+		setIsUserPopoverOpen(false); // Close popover on sign out
 	};
 
 	const handleCalendarSelect = (calendarId: string | null) => {
@@ -225,6 +254,46 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 							</Button>
 						)}
 					</form>
+					{/* User Settings Popover */}
+					<Popover open={isUserPopoverOpen} onOpenChange={setIsUserPopoverOpen}>
+						<PopoverTrigger asChild>
+							<Button variant="ghost" size="icon" className="ml-2">
+								<UserIcon className="h-5 w-5" />
+							</Button>
+						</PopoverTrigger>
+						<PopoverContent className="w-80">
+							<div className="grid gap-4">
+								<div className="space-y-2">
+									<h4 className="font-medium leading-none">User Settings</h4>
+									<p className="text-sm text-muted-foreground">
+										Manage your account settings.
+									</p>
+								</div>
+								<div className="grid gap-2">
+									<div className="grid grid-cols-3 items-center gap-4">
+										<Input
+											id="userName"
+											value={nameOfUser}
+											onChange={onUserNameChanged}
+											onBlur={onUserNameSaved} // Save on blur
+											className="col-span-2 h-8"
+										/>
+										<Button onClick={onUserNameSaved} size="sm" className="col-span-1">
+											Save Name
+										</Button>
+									</div>
+									<div className="grid grid-cols-3 items-center gap-4">
+										<span className="col-span-2 text-sm">
+											Default Calendar: {user?.myCalendar?.calendarName || 'Not set'}
+										</span>
+									</div>
+									<Button variant="outline" onClick={showSignOutModal} className="w-full">
+										Sign Out
+									</Button>
+								</div>
+							</div>
+						</PopoverContent>
+					</Popover>
 				</div>
 			</header>
 

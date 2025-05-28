@@ -1,7 +1,5 @@
 import { useCallback, useState } from 'react';
 import {
-	Edit,
-	Trash,
 	CheckSquare,
 	Square,
 	Clock,
@@ -10,12 +8,9 @@ import {
 	Flag,
 	MoreHorizontal,
 	FileText,
-	ChevronDown,
-	ChevronUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 import { CalendarEvent, PRIORITY_COLORS } from '@/lib/types';
 import { formatTime, cn } from '@/lib/utils';
@@ -40,35 +35,23 @@ export default function CustomEvent({
 	onContextMenu,
 	onDragStart,
 }: CustomEventProps) {
-	const { deleteEvent, toggleEventDone, startDrag, endDrag, updatingEvents } = useEvents();
+	const { toggleEventDone, startDrag, endDrag, updatingEvents } = useEvents();
 	const [isHovered, setIsHovered] = useState(false);
-	const [isContentExpanded, setIsContentExpanded] = useState(false);
 	const [isCurrentlyDragging, setIsCurrentlyDragging] = useState(false);
 	const isEventUpdating = updatingEvents.has(event.id);
 
 	const handleEdit = useCallback(() => {
-		// This is the function that should be called by ActionsButton's onAction
-		// The `event` here is from the closure of CustomEvent's props
-		console.log('[CustomEvent] handleEdit: CALLED. Event from closure:', event?.title); // Simplified log, using event from closure
-
-		if (onEdit) { // onEdit is a prop of CustomEvent
-			console.log('[CustomEvent] handleEdit: Calling onEdit prop callback.');
+		if (onEdit) {
 			onEdit();
-		} else {
-			console.error('[CustomEvent] handleEdit: No onEdit prop callback provided.');
 		}
-	}, [onEdit, event]); // Dependencies for useCallback
+	}, [onEdit, event]);
 
 	const handleDoubleClick = useCallback(
 		(e: React.MouseEvent) => {
-			console.log('CustomEvent handleDoubleClick called for:', event.id, event.title);
 			e.stopPropagation();
 			e.preventDefault();
 			if (onEdit) {
-				console.log('Calling onEdit callback from double-click');
 				onEdit();
-			} else {
-				console.error('No onEdit callback provided for double-click');
 			}
 		},
 		[onEdit, event]
@@ -76,7 +59,6 @@ export default function CustomEvent({
 
 	const handleToggleDone = useCallback(
 		async (e: React.MouseEvent) => {
-			console.log('Ee');
 			e.stopPropagation();
 			e.preventDefault();
 
@@ -84,7 +66,6 @@ export default function CustomEvent({
 				await toggleEventDone(event.id);
 				toast(event.isDone ? 'Event marked as incomplete' : 'Event marked as complete');
 			} catch (error) {
-				console.error('Failed to toggle event status:', error);
 				toast('Failed to update event status');
 			}
 		},
@@ -114,7 +95,6 @@ export default function CustomEvent({
 
 			startDrag(event, 'calendar-event');
 
-			// Create a more polished drag image
 			const dragImage = document.createElement('div');
 			dragImage.innerHTML = `
             <div style="
@@ -142,7 +122,6 @@ export default function CustomEvent({
 			document.body.appendChild(dragImage);
 			e.dataTransfer.setDragImage(dragImage, dragImage.offsetWidth / 2, dragImage.offsetHeight / 2);
 
-			// Clean up drag image
 			requestAnimationFrame(() => {
 				if (document.body.contains(dragImage)) {
 					document.body.removeChild(dragImage);
@@ -169,7 +148,6 @@ export default function CustomEvent({
 	const hasRichContent = Boolean(event.content?.trim());
 	const shouldShowExpandButton = hasRichContent && parsedContent.length > 200;
 
-	// Add enhanced loading overlay with better UX
 	const LoadingOverlay = () => {
 		if (!isEventUpdating) return null;
 
@@ -183,7 +161,6 @@ export default function CustomEvent({
 		);
 	};
 
-	// Enhanced visual feedback styles
 	const getEventStyles = () => {
 		const baseStyles = {
 			backgroundColor: calendarEventColor,
@@ -203,7 +180,7 @@ export default function CustomEvent({
 			return {
 				...baseStyles,
 				boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.5), 0 0 12px rgba(59, 130, 246, 0.3)',
-				transform: 'translateZ(0)', // Force hardware acceleration
+				transform: 'translateZ(0)',
 			};
 		}
 
@@ -212,39 +189,30 @@ export default function CustomEvent({
 
 	const ActionsButton = ({
 		size = 'default',
-		event, // This is the event object passed as a prop to ActionsButton
+		event,
 		onAction,
 	}: {
 		size?: 'default' | 'small';
 		event: any;
 		onAction: any;
 	}) => {
-		// Log info about the onAction prop when ActionsButton renders or re-renders
-		console.log('[ActionsButton] Props check. event.title:', event?.title, 'onAction type:', typeof onAction);
-
 		return (
 			<Button
 				variant='ghost'
 				size='icon'
 				className={cn(
-					'flex-shrink-0 text-white/80 hover:text-white hover:bg-white/20 relative z-20', // z-index was previously increased
+					'flex-shrink-0 text-white/80 hover:text-white hover:bg-white/20 relative z-20',
 					size === 'small' ? 'h-4 w-4' : 'h-6 w-6'
 				)}
 				onClick={e => {
-						e.stopPropagation(); // Stop propagation
-						// This is the direct onClick handler for the shadcn Button
-						console.log('[ActionsButton] Internal onClick: Fired for event.title:', event?.title);
-						if (onAction) {
-							console.log('[ActionsButton] Internal onClick: Calling onAction...');
-							onAction(event); // Calling the function passed as onAction (which should be handleEdit)
-						} else {
-							console.warn('[ActionsButton] Internal onClick: onAction is undefined/null.');
-						}
-					}}
-					onMouseDown={e => {
-						e.stopPropagation();
-						console.log('[ActionsButton] Internal onMouseDown: Fired for event.title:', event?.title);
-					}}
+					e.stopPropagation();
+					if (onAction) {
+						onAction(event);
+					}
+				}}
+				onMouseDown={e => {
+					e.stopPropagation();
+				}}
 				type='button'
 			>
 				<MoreHorizontal className={cn(size === 'small' ? 'h-3 w-3' : 'h-4 w-4')} />
@@ -276,10 +244,8 @@ export default function CustomEvent({
 			>
 				<LoadingOverlay />
 
-				{/* Disable interactions while updating */}
 				{isEventUpdating && <div className='absolute inset-0 z-5 cursor-not-allowed' />}
 
-				{/* Completion checkbox */}
 				<Button
 					variant='ghost'
 					size='icon'
@@ -293,9 +259,7 @@ export default function CustomEvent({
 					)}
 				</Button>
 
-				{/* Event content */}
 				<div className='flex items-center gap-2 flex-1 min-w-0 ml-1'>
-					{/* Time indicator for non-all-day events */}
 					{!event.isAllDay && event.start && (
 						<span className='text-xs text-gray-200 whitespace-nowrap flex-shrink-0'>
 							<Clock className='h-3 w-3 inline mr-1' />
@@ -303,7 +267,6 @@ export default function CustomEvent({
 						</span>
 					)}
 
-					{/* Title */}
 					<span
 						className={cn(
 							'font-medium truncate text-sm flex-1',
@@ -323,7 +286,6 @@ export default function CustomEvent({
 		);
 	}
 
-	// Render detailed version for week/day/agenda views
 	return (
 		<div
 			className={cn(
@@ -346,10 +308,8 @@ export default function CustomEvent({
 		>
 			<LoadingOverlay />
 
-			{/* Disable interactions while updating */}
 			{isEventUpdating && <div className='absolute inset-0 z-5 cursor-not-allowed' />}
 
-			{/* Header */}
 			<div className='flex items-start justify-between gap-1'>
 				<div className='flex items-center gap-1 overflow-hidden flex-1'>
 					<Button
@@ -401,9 +361,7 @@ export default function CustomEvent({
 				</div>
 			</div>
 
-			{/* Content */}
 			<div className='flex-1 mt-1'>
-				{/* Description */}
 				{event.description && !event.isAllDay && (
 					<div className='text-xs text-gray-200 mt-1 line-clamp-2'>{event.description}</div>
 				)}
@@ -411,16 +369,12 @@ export default function CustomEvent({
 				{hasRichContent && parsedContent && (
 					<div className='mt-2'>
 						<div
-							className={cn(
-								'max-w-none',
-								!isContentExpanded && shouldShowExpandButton && 'line-clamp-3 overflow-hidden'
-							)}
+							className={cn('max-w-none', shouldShowExpandButton && 'line-clamp-3 overflow-hidden')}
 							dangerouslySetInnerHTML={{ __html: parsedContent }}
 						/>
 					</div>
 				)}
 
-				{/* Location */}
 				{event.location && (
 					<div className='flex items-center gap-1 text-xs text-gray-300 mt-1'>
 						<MapPin className='h-3 w-3' />
@@ -428,7 +382,6 @@ export default function CustomEvent({
 					</div>
 				)}
 
-				{/* Progress for tasks with subtasks */}
 				{event.hasSubtasks && (
 					<div className='mt-1'>
 						<div className='flex items-center justify-between text-xs text-gray-300'>
@@ -447,10 +400,8 @@ export default function CustomEvent({
 				)}
 			</div>
 
-			{/* Footer */}
 			<div className='flex items-center justify-between mt-2 text-xs'>
 				<div className='flex items-center gap-1 flex-wrap'>
-					{/* Priority indicator */}
 					{event.priority && event.priority !== 'medium' && (
 						<Badge
 							variant='outline'
@@ -461,7 +412,6 @@ export default function CustomEvent({
 						</Badge>
 					)}
 
-					{/* Status indicator */}
 					<Badge
 						variant='outline'
 						className='text-xs px-1 py-0 border-white/50 text-white/80 bg-white/10'
@@ -469,7 +419,6 @@ export default function CustomEvent({
 						{(event.status || 'todo').replace('_', ' ')}
 					</Badge>
 
-					{/* Tags */}
 					{event.tags &&
 						event.tags.slice(0, 2).map((tag, index) => (
 							<Badge
@@ -487,7 +436,6 @@ export default function CustomEvent({
 					)}
 				</div>
 
-				{/* Assignees */}
 				{event.assignee && event.assignee.length > 0 && (
 					<div className='flex items-center gap-1'>
 						<Users className='h-3 w-3 text-gray-300' />

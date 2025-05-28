@@ -15,7 +15,7 @@ export default defineConfig({
 	server: {
 		proxy: {
 			'/api': {
-				target: 'https://calendar.simplem.in',
+				target: 'http://localhost:5001',
 				changeOrigin: true,
 			},
 		},
