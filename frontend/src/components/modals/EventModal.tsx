@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { format } from 'date-fns';
+// import { format } from 'date-fns'; // No longer used directly here
 import {
 	Dialog,
 	DialogContent,
@@ -25,23 +25,20 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Calendar } from '@/components/ui/calendar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import {
 	CalendarIcon,
-	Clock,
+	// Clock, // No longer used directly here
 	MapPin,
 	Flag,
 	Trash2,
 	Save,
 	X,
-	Plus,
 	AlertCircle,
 } from 'lucide-react';
 
@@ -54,6 +51,7 @@ import RichTextEditor from '../calendar/RichTextEditor';
 import UserSelector from '../calendar/UserSelector';
 import TagInput from '../calendar/TagInput';
 import DependencySelector from '../calendar/DependencySelector';
+import { DateTimeField } from '../DateTimeField'; // Corrected import path relative to modals directory
 
 const eventFormSchema = z.object({
 	title: z.string().min(1, 'Title is required'),
@@ -189,6 +187,48 @@ export default function EventModal({
 		});
 	}, [addEvent, updateEvent, deleteEvent]);
 
+	useEffect(() => {
+		const start = form.watch('start');
+		const end = form.watch('end');
+		const currentEstimatedHours = form.watch('estimatedHours');
+
+		if (start && end && end > start) {
+			const diffMilliseconds = end.getTime() - start.getTime();
+			const diffHours = parseFloat((diffMilliseconds / (1000 * 60 * 60)).toFixed(2));
+			
+			if (diffHours !== currentEstimatedHours) {
+				form.setValue('estimatedHours', diffHours, { shouldValidate: true });
+			}
+		} else if (currentEstimatedHours !== undefined && currentEstimatedHours !== null && (!start || !end || end <= start) ){
+			// if start/end is cleared or invalid, but we had an estimate, clear it unless it's 0
+			// Or if user manually clears estimated hours
+			// form.setValue('estimatedHours', undefined, { shouldValidate: true });
+		}
+
+	}, [form.watch('start'), form.watch('end'), form]);
+
+	useEffect(() => {
+		const start = form.watch('start');
+		const estimatedHours = form.watch('estimatedHours');
+		const currentEnd = form.watch('end');
+
+		if (start && typeof estimatedHours === 'number' && estimatedHours > 0) {
+			const newEnd = new Date(start.getTime() + estimatedHours * 60 * 60 * 1000);
+			if (!currentEnd || newEnd.getTime() !== currentEnd.getTime()) {
+				form.setValue('end', newEnd, { shouldValidate: true });
+			}
+		} else if (start && typeof estimatedHours === 'number' && estimatedHours === 0 && currentEnd) {
+			// If estimated hours is set to 0, set end time to be same as start time
+			if (currentEnd.getTime() !== start.getTime()) {
+				form.setValue('end', new Date(start.getTime()), { shouldValidate: true });
+			}
+		} 
+		// if estimated hours is cleared (undefined / null) or negative, we don't auto-update end time
+		// The user might be in the process of clearing/correcting it.
+
+	}, [form.watch('start'), form.watch('estimatedHours'), form]);
+
+
 	const onSubmit = async (values: any) => {
 		setIsLoading(true);
 		try {
@@ -276,15 +316,112 @@ export default function EventModal({
 					>
 						<div className='flex-1 overflow-hidden'>
 							<Tabs value={activeTab} onValueChange={setActiveTab} className='h-full flex flex-col'>
-								<TabsList className='grid w-full grid-cols-4 flex-shrink-0'>
+								<TabsList className='grid w-full grid-cols-3 flex-shrink-0'>
 									<TabsTrigger value='details'>Details</TabsTrigger>
-									<TabsTrigger value='scheduling'>Scheduling</TabsTrigger>
 									<TabsTrigger value='assignment'>Assignment</TabsTrigger>
 									<TabsTrigger value='advanced'>Advanced</TabsTrigger>
 								</TabsList>
 
 								<div className='flex-1 overflow-y-auto'>
 									<TabsContent value='details' className='space-y-4 mt-6'>
+										{/* Calendar UID field */}
+										{availableCalendars.length > 1 && (
+											<FormField
+												control={form.control}
+												name='uid'
+												render={({ field }) => (
+													<FormItem>
+														<FormLabel>Calendar</FormLabel>
+														<Select onValueChange={field.onChange} value={field.value}>
+															<FormControl>
+																<SelectTrigger>
+																	<SelectValue placeholder='Select a calendar' />
+																</SelectTrigger>
+															</FormControl>
+															<SelectContent>
+																{availableCalendars.map((cal: UserCalendarItem) => (
+																	<SelectItem key={cal.calendar.uid} value={cal.calendar.uid}>
+																		<div className='flex items-center gap-2'>
+																			<div
+																				className='w-3 h-3 rounded-full'
+																				style={{ backgroundColor: cal.color }}
+																			/>
+																			{cal.calendar.calendarName}
+																		</div>
+																	</SelectItem>
+																))}
+															</SelectContent>
+														</Select>
+														<FormMessage />
+													</FormItem>
+												)}
+											/>
+										)}
+
+										{/* Start/End Date grid */}
+										<div className='grid grid-cols-2 gap-4'>
+											<DateTimeField
+												control={form.control}
+												name='start'
+												config={{
+													label: 'Start Date & Time',
+													showTimeInput: !form.watch('isAllDay'),
+													placeholder: 'Pick a start date',
+												}}
+											/>
+											<DateTimeField
+												control={form.control}
+												name='end'
+												config={{
+													label: 'End Date & Time',
+													showTimeInput: !form.watch('isAllDay'),
+													placeholder: 'Pick an end date',
+												}}
+											/>
+										</div>
+
+										{/* isAllDay switch */}
+										<div className='flex items-center space-x-2'>
+											<FormField
+												control={form.control}
+												name='isAllDay'
+												render={({ field }) => (
+													<FormItem className='flex flex-row items-center space-x-2 space-y-0'>
+														<FormControl>
+															<Switch checked={field.value} onCheckedChange={field.onChange} />
+														</FormControl>
+														<FormLabel>All Day Event</FormLabel>
+													</FormItem>
+												)}
+											/>
+										</div>
+										
+										<FormField
+											control={form.control}
+											name='estimatedHours'
+											render={({ field }) => (
+												<FormItem>
+													<FormLabel>Estimated Hours</FormLabel>
+													<FormControl>
+														<Input
+															type='number'
+															min='0'
+															step='0.5'
+															placeholder='Estimated time in hours'
+															{...field}
+															value={field.value || ''}
+															onChange={e =>
+																field.onChange(
+																	e.target.value ? parseFloat(e.target.value) : undefined
+																)
+															}
+														/>
+													</FormControl>
+													<FormMessage />
+												</FormItem>
+											)}
+										/>
+
 										<FormField
 											control={form.control}
 											name='title'
@@ -350,213 +487,6 @@ export default function EventModal({
 															<MapPin className='absolute left-3 top-3 h-4 w-4 text-muted-foreground' />
 															<Input placeholder='Event location' className='pl-10' {...field} />
 														</div>
-													</FormControl>
-													<FormMessage />
-												</FormItem>
-											)}
-										/>
-
-										{/* Calendar UID field */}
-										{availableCalendars.length > 1 && (
-											<FormField
-												control={form.control}
-												name='uid'
-												render={({ field }) => (
-													<FormItem>
-														<FormLabel>Calendar</FormLabel>
-														<Select onValueChange={field.onChange} value={field.value}>
-															<FormControl>
-																<SelectTrigger>
-																	<SelectValue placeholder='Select a calendar' />
-																</SelectTrigger>
-															</FormControl>
-															<SelectContent>
-																{availableCalendars.map((cal: UserCalendarItem) => (
-																	<SelectItem key={cal.calendar.uid} value={cal.calendar.uid}>
-																		<div className='flex items-center gap-2'>
-																			<div
-																				className='w-3 h-3 rounded-full'
-																				style={{ backgroundColor: cal.color }}
-																			/>
-																			{cal.calendar.calendarName}
-																		</div>
-																	</SelectItem>
-																))}
-															</SelectContent>
-														</Select>
-														<FormMessage />
-													</FormItem>
-												)}
-											/>
-										)}
-
-										{/* Start/End Date grid */}
-										<div className='grid grid-cols-2 gap-4'>
-											<FormField
-												control={form.control}
-												name='start'
-												render={({ field }) => (
-													<FormItem>
-														<FormLabel>Start Date & Time</FormLabel>
-														<Popover>
-															<PopoverTrigger asChild>
-																<FormControl>
-																	<Button
-																		variant='outline'
-																		className={cn(
-																			'w-full pl-3 text-left font-normal',
-																			!field.value && 'text-muted-foreground'
-																		)}
-																	>
-																		{field.value ? (
-																			<div className='flex items-center gap-2'>
-																				<CalendarIcon className='h-4 w-4' />
-																				{format(field.value, 'PPP')}
-																				{!form.watch('isAllDay') && (
-																					<>
-																						<Clock className='h-4 w-4' />
-																						{format(field.value, 'HH:mm')}
-																					</>
-																				)}
-																			</div>
-																		) : (
-																			<span>Pick a date</span>
-																		)}
-																	</Button>
-																</FormControl>
-															</PopoverTrigger>
-															<PopoverContent className='w-auto p-0' align='start'>
-																<Calendar
-																	mode='single'
-																	selected={field.value as any}
-																	onSelect={field.onChange}
-																	initialFocus
-																/>
-																{!form.watch('isAllDay') && (
-																	<div className='p-3 border-t'>
-																		<Input
-																			type='time'
-																			value={field.value ? format(field.value, 'HH:mm') : ''}
-																			onChange={e => {
-																				if (field.value && e.target.value) {
-																					const [hours, minutes] = e.target.value.split(':');
-																					const newDate = new Date(field.value);
-																					newDate.setHours(parseInt(hours), parseInt(minutes));
-																					field.onChange(newDate);
-																				}
-																			}}
-																		/>
-																	</div>
-																)}
-															</PopoverContent>
-														</Popover>
-														<FormMessage />
-													</FormItem>
-												)}
-											/>
-
-											<FormField
-												control={form.control}
-												name='end'
-												render={({ field }) => (
-													<FormItem>
-														<FormLabel>End Date & Time</FormLabel>
-														<Popover>
-															<PopoverTrigger asChild>
-																<FormControl>
-																	<Button
-																		variant='outline'
-																		className={cn(
-																			'w-full pl-3 text-left font-normal',
-																			!field.value && 'text-muted-foreground'
-																		)}
-																	>
-																		{field.value ? (
-																			<div className='flex items-center gap-2'>
-																				<CalendarIcon className='h-4 w-4' />
-																				{format(field.value, 'PPP')}
-																				{!form.watch('isAllDay') && (
-																					<>
-																						<Clock className='h-4 w-4' />
-																						{format(field.value, 'HH:mm')}
-																					</>
-																				)}
-																			</div>
-																		) : (
-																			<span>Pick a date</span>
-																		)}
-																	</Button>
-																</FormControl>
-															</PopoverTrigger>
-															<PopoverContent className='w-auto p-0' align='start'>
-																<Calendar
-																	mode='single'
-																	selected={field.value as any}
-																	onSelect={field.onChange}
-																	initialFocus
-																/>
-																{!form.watch('isAllDay') && (
-																	<div className='p-3 border-t'>
-																		<Input
-																			type='time'
-																			value={field.value ? format(field.value, 'HH:mm') : ''}
-																			onChange={e => {
-																				if (field.value && e.target.value) {
-																					const [hours, minutes] = e.target.value.split(':');
-																					const newDate = new Date(field.value);
-																					newDate.setHours(parseInt(hours), parseInt(minutes));
-																					field.onChange(newDate);
-																				}
-																			}}
-																		/>
-																	</div>
-																)}
-															</PopoverContent>
-														</Popover>
-														<FormMessage />
-													</FormItem>
-												)}
-											/>
-										</div>
-
-										{/* isAllDay switch */}
-										<div className='flex items-center space-x-2'>
-											<FormField
-												control={form.control}
-												name='isAllDay'
-												render={({ field }) => (
-													<FormItem className='flex flex-row items-center space-x-2 space-y-0'>
-														<FormControl>
-															<Switch checked={field.value} onCheckedChange={field.onChange} />
-														</FormControl>
-														<FormLabel>All Day Event</FormLabel>
-													</FormItem>
-												)}
-											/>
-										</div>
-									</TabsContent>
-
-									<TabsContent value='scheduling' className='space-y-4 mt-6'>
-										<FormField
-											control={form.control}
-											name='estimatedHours'
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel>Estimated Hours</FormLabel>
-													<FormControl>
-														<Input
-															type='number'
-															min='0'
-															step='0.5'
-															placeholder='Estimated time in hours'
-															{...field}
-															value={field.value || ''}
-															onChange={e =>
-																field.onChange(
-																	e.target.value ? parseFloat(e.target.value) : undefined
-																)
-															}
-														/>
 													</FormControl>
 													<FormMessage />
 												</FormItem>
