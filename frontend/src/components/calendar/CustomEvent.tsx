@@ -60,6 +60,7 @@ export default function CustomEvent({
 
 	const handleDelete = useCallback(
 		(e: React.MouseEvent) => {
+			console.log('Hello');
 			e.stopPropagation();
 			deleteEvent(event.id);
 		},
@@ -438,7 +439,6 @@ export default function CustomEvent({
 					<div className='text-xs text-gray-200 mt-1 line-clamp-2'>{event.description}</div>
 				)}
 
-				{/* Rich Content (MDX) */}
 				{hasRichContent && parsedContent && (
 					<div className='mt-2'>
 						<div

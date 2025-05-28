@@ -145,9 +145,13 @@ export default function EventModal({
 				uid: event.uid,
 			});
 		} else if (mode === 'add') {
+			const defaultUid = getDefaultCalendarUid();
+			if (!defaultUid) {
+				console.error('No default calendar UID available');
+			}
 			form.reset({
 				...DEFAULT_EVENT_FORM,
-				uid: getDefaultCalendarUid(),
+				uid: defaultUid,
 				start: defaultStart,
 				end: defaultEnd,
 			});
@@ -160,7 +164,7 @@ export default function EventModal({
 		setIsLoading(true);
 		try {
 			if (mode === 'add') {
-				await addEvent(values);
+				await addEvent(values, values.uid);
 			} else if (mode === 'edit' && event) {
 				await updateEvent({
 					...event,

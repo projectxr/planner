@@ -35,7 +35,6 @@ const transformEventForClient = (event: any) => {
 // @access  Private
 router.get('/agenda', userAuth, async (req: Request, res: Response) => {
 	try {
-		// Get user's calendars
 		const user = await User.findById(new Types.ObjectId(req.user!.id)).populate(
 			'myCalendars.calendar'
 		);
@@ -47,7 +46,6 @@ router.get('/agenda', userAuth, async (req: Request, res: Response) => {
 
 		const calendarUids = user.myCalendars.map((cal: any) => cal.calendar.uid);
 
-		// Get active events with hierarchy
 		const events = await EventDB.findAll({
 			where: {
 				status: { [Op.not]: 'done' },

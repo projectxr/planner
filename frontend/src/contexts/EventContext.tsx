@@ -905,12 +905,13 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 		}
 	}, [user]);
 
-	// Add event
 	const addEvent = useCallback(
 		async (eventData: EventFormData, calendarUid?: string) => {
 			if (!user) return;
 
-			const { uid, color } = getCurrentCalendarInfo(calendarUid);
+			// Use provided calendarUid or get default
+			const targetUid = calendarUid || eventData.uid;
+			const { uid, color } = getCurrentCalendarInfo(targetUid);
 			setError(null);
 
 			try {
@@ -919,6 +920,7 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 					eventData: {
 						...eventData,
 						id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+						uid, // Ensure uid is in eventData too
 					},
 				});
 
@@ -964,7 +966,6 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 		[user, getCurrentCalendarInfo, toast]
 	);
 
-	// Update event
 	const updateEvent = useCallback(
 		async (eventData: CalendarEvent) => {
 			return updateEventOptimistic(eventData, true);
