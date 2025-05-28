@@ -44,10 +44,11 @@ interface CalendarEventContextType {
 	slotSelectionEndDate: Date | null;
 	isCalendarModalOpen: boolean;
 	isUserModalOpen: boolean;
+	isFilterModalOpen: boolean; // Added
 	contextMenu: ContextMenuData | null;
 
 	// Drag and drop
-	dragDropData: DragDropData;
+	dragDropData: DragDropData, // Restored
 
 	// Filters and loading
 	filters: FilterOptions;
@@ -82,6 +83,9 @@ interface CalendarEventContextType {
 	selectEvent: (event: CalendarEvent | null) => void;
 	openAddModal: (startDate?: Date, endDate?: Date) => void;
 	openEditModal: (event: CalendarEvent) => void;
+	openFilterModal: () => void; // Added
+	openCalendarModal: () => void; // Added
+	openUserModal: () => void; // Added
 	closeAllModals: () => void;
 
 	// Context menu
@@ -139,6 +143,7 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 	const [slotSelectionEndDate, setSlotSelectionEndDate] = useState<Date | null>(null);
 	const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
 	const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+	const [isFilterModalOpen, setIsFilterModalOpen] = useState(false); // Added
 	const [contextMenu, setContextMenu] = useState<ContextMenuData | null>(null);
 
 	const [isDragging, setIsDragging] = useState(false);
@@ -146,7 +151,7 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 	const [dragType, setDragType] = useState<'calendar-event' | 'unscheduled-task' | null>(null);
 	const [updatingEvents, setUpdatingEvents] = useState<Set<string>>(new Set());
 
-	const [dragDropData, setDragDropData] = useState<DragDropData>({
+	const [dragDropData, setDragDropData] = useState<DragDropData>({ // Restored
 		draggedItem: null,
 		dragFromOutsideItem: null,
 	});
@@ -1139,15 +1144,28 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	const openEditModal = useCallback((event: CalendarEvent) => {
+		console.log('EventContext openEditModal called with:', event);
+		if (!event || !event.id) {
+			console.error('Invalid event passed to openEditModal:', event);
+			return;
+		}
 		setSelectedEvent(event);
 		setIsEditModalOpen(true);
+		setIsAddModalOpen(false); // Ensure add modal is closed
+	console.log('Edit modal should now be open with event:', event.id, event.title);
 	}, []);
 
+	const openFilterModal = useCallback(() => setIsFilterModalOpen(true), []);
+	const openCalendarModalCtx = useCallback(() => setIsCalendarModalOpen(true), []);
+	const openUserModalCtx = useCallback(() => setIsUserModalOpen(true), []);
+
 	const closeAllModals = useCallback(() => {
+		console.log('Closing all modals');
 		setIsAddModalOpen(false);
 		setIsEditModalOpen(false);
 		setIsCalendarModalOpen(false);
 		setIsUserModalOpen(false);
+		setIsFilterModalOpen(false); // Added
 		setSelectedEvent(null);
 		setSlotSelectionStartDate(null);
 		setSlotSelectionEndDate(null);
@@ -1158,22 +1176,22 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 		setCurrentDate(new Date());
 	}, []);
 
-	const handleDrop = useCallback(
+	const handleDrop = useCallback( // Restored
 		async (dropData: { start: Date; end: Date; allDay?: boolean }) => {
-			const { draggedItem } = dragDropData;
-			if (!draggedItem) return;
+			const { draggedItem: itemToDrop } = dragDropData; // Renamed to avoid conflict with setDraggedItem parameter
+			if (!itemToDrop) return;
 
 			const updatedItem = {
-				...draggedItem,
+				...itemToDrop,
 				start: dropData.start,
 				end: dropData.end,
 				isAllDay: dropData.allDay || false,
 			};
 
 			await updateEvent(updatedItem);
-			setDraggedItem(null);
+			setDraggedItem(null); // This is the setDraggedItem from the context's direct state
 		},
-		[dragDropData, updateEvent, setDraggedItem]
+		[dragDropData, updateEvent, setDraggedItem] // setDraggedItem is a dependency from the outer scope
 	);
 
 	// Filter effects
@@ -1377,12 +1395,13 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 		isEditModalOpen,
 		isCalendarModalOpen,
 		isUserModalOpen,
+		isFilterModalOpen, // Added
 		contextMenu,
 		slotSelectionStartDate,
 		slotSelectionEndDate,
 
 		// Drag and drop
-		dragDropData,
+		dragDropData, // Restored
 
 		// Filters and loading
 		filters,
@@ -1416,6 +1435,9 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 		selectEvent,
 		openAddModal,
 		openEditModal,
+		openFilterModal, // Added
+		openCalendarModal: openCalendarModalCtx, // Renamed to avoid conflict, provide as openCalendarModal
+		openUserModal: openUserModalCtx, // Renamed to avoid conflict, provide as openUserModal
 		closeAllModals,
 
 		// Context menu
@@ -1423,7 +1445,7 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 
 		// Drag and drop
 		setDraggedItem,
-		handleDrop,
+		handleDrop, // Restored
 
 		// Filters
 		setFilters,

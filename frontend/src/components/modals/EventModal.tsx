@@ -59,18 +59,18 @@ const eventFormSchema = z.object({
 	title: z.string().min(1, 'Title is required'),
 	description: z.string().optional(),
 	content: z.string().optional(),
-	start: z.date().optional(),
-	end: z.date().optional(),
+	start: z.date().optional().nullable(),
+	end: z.date().optional().nullable(),
 	isAllDay: z.boolean().default(false),
 	location: z.string().optional(),
 	priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
 	status: z.enum(['todo', 'in_progress', 'review', 'done', 'cancelled']).default('todo'),
 	assignee: z.array(z.string()).default([]),
 	tags: z.array(z.string()).default([]),
-	parentId: z.string().optional(),
+	parentId: z.string().optional().nullable(),
 	dependsOn: z.array(z.string()).default([]),
 	blocks: z.array(z.string()).default([]),
-	estimatedHours: z.number().optional(),
+	estimatedHours: z.number().optional().nullable(),
 	uid: z.string().min(1, 'Calendar is required'),
 });
 
@@ -125,42 +125,71 @@ export default function EventModal({
 	});
 
 	useEffect(() => {
-		if (mode === 'edit' && event) {
-			form.reset({
-				title: event.title,
-				description: event.description || '',
-				content: event.content || '',
-				start: event.start || undefined,
-				end: event.end || undefined,
-				isAllDay: event.isAllDay || false,
-				location: event.location || '',
-				priority: event.priority,
-				status: event.status,
-				assignee: event.assignee || [],
-				tags: event.tags || [],
-				parentId: event.parentId || undefined,
-				dependsOn: event.dependsOn || [],
-				blocks: event.blocks || [],
-				estimatedHours: event.estimatedHours || undefined,
-				uid: event.uid,
-			});
-		} else if (mode === 'add') {
-			const defaultUid = getDefaultCalendarUid();
-			if (!defaultUid) {
-				console.error('No default calendar UID available');
-			}
-			form.reset({
-				...DEFAULT_EVENT_FORM,
-				uid: defaultUid,
-				start: defaultStart,
-				end: defaultEnd,
-			});
+		// Reset to details tab when modal opens
+		if (isOpen) {
+			setActiveTab('details');
 		}
-	}, [mode, event, defaultStart, defaultEnd, form, getDefaultCalendarUid]);
+	}, [isOpen]);
+
+	useEffect(() => {
+		console.log('EventModal mounted/updated:', { mode, event, isOpen });
+
+		if (!isOpen) return; // Don't reset if modal is closed
+
+		try {
+			if (mode === 'edit' && event) {
+				console.log('Resetting form with event data:', event);
+				const formData = {
+					title: event.title || '',
+					description: event.description || '',
+					content: event.content || '',
+					start: event.start ? new Date(event.start) : undefined,
+					end: event.end ? new Date(event.end) : undefined,
+					isAllDay: event.isAllDay || false,
+					location: event.location || '',
+					priority: event.priority || 'medium',
+					status: event.status || 'todo',
+					assignee: event.assignee || [],
+					tags: event.tags || [],
+					parentId: event.parentId || undefined,
+					dependsOn: event.dependsOn || [],
+					blocks: event.blocks || [],
+					estimatedHours: event.estimatedHours || undefined,
+					uid: event.uid || '',
+				};
+				console.log('Form data to reset:', formData);
+				form.reset(formData);
+			} else if (mode === 'add') {
+				const defaultUid = getDefaultCalendarUid();
+				console.log('Resetting form for new event with default UID:', defaultUid);
+				if (!defaultUid) {
+					console.error('No default calendar UID available');
+				}
+				const formData = {
+					...DEFAULT_EVENT_FORM,
+					uid: defaultUid || '',
+					start: defaultStart,
+					end: defaultEnd,
+				};
+				console.log('Form data for new event:', formData);
+				form.reset(formData);
+			}
+		} catch (error) {
+			console.error('Error resetting form:', error);
+		}
+	}, [mode, event, defaultStart, defaultEnd, form, getDefaultCalendarUid, isOpen]);
 
 	const { addEvent, updateEvent, deleteEvent } = useEvents();
 
-	const onSubmit = async (values: EventFormValues) => {
+	useEffect(() => {
+		console.log('EventModal hooks:', {
+			hasAddEvent: !!addEvent,
+			hasUpdateEvent: !!updateEvent,
+			hasDeleteEvent: !!deleteEvent,
+		});
+	}, [addEvent, updateEvent, deleteEvent]);
+
+	const onSubmit = async (values: any) => {
 		setIsLoading(true);
 		try {
 			if (mode === 'add') {
@@ -170,7 +199,7 @@ export default function EventModal({
 					...event,
 					...values,
 					updatedAt: new Date(),
-				});
+				} as any);
 			}
 			onClose();
 		} catch (error) {
@@ -228,7 +257,7 @@ export default function EventModal({
 					<DialogTitle className='flex items-center gap-2'>
 						{mode === 'add' ? (
 							<>
-								<Plus className='h-5 w-5' />
+								<CalendarIcon className='h-5 w-5' />
 								Create New Event
 							</>
 						) : (
@@ -399,7 +428,7 @@ export default function EventModal({
 															<PopoverContent className='w-auto p-0' align='start'>
 																<Calendar
 																	mode='single'
-																	selected={field.value}
+																	selected={field.value as any}
 																	onSelect={field.onChange}
 																	initialFocus
 																/>
@@ -462,7 +491,7 @@ export default function EventModal({
 															<PopoverContent className='w-auto p-0' align='start'>
 																<Calendar
 																	mode='single'
-																	selected={field.value}
+																	selected={field.value as any}
 																	onSelect={field.onChange}
 																	initialFocus
 																/>

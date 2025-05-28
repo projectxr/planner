@@ -15,22 +15,18 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 import { CalendarEvent, PRIORITY_COLORS } from '@/lib/types';
 import { formatTime, cn } from '@/lib/utils';
 import { useEvents } from '@/contexts/EventContext';
 import { useMDXParser } from '@/lib/mdx-parser';
+import { toast } from 'sonner';
 
 interface CustomEventProps {
 	event: CalendarEvent;
 	title: React.ReactNode;
-	view?: string; // Add view prop to determine rendering mode
+	view?: string;
 	onEdit?: () => void;
 	onContextMenu?: (e: React.MouseEvent, event: CalendarEvent) => void;
 	onDragStart?: () => void;
@@ -50,29 +46,49 @@ export default function CustomEvent({
 	const [isCurrentlyDragging, setIsCurrentlyDragging] = useState(false);
 	const isEventUpdating = updatingEvents.has(event.id);
 
-	const handleEdit = useCallback(
-		(e: React.MouseEvent) => {
-			e.stopPropagation();
-			if (onEdit) onEdit();
-		},
-		[onEdit]
-	);
+	const handleEdit = useCallback(() => {
+		// This is the function that should be called by ActionsButton's onAction
+		// The `event` here is from the closure of CustomEvent's props
+		console.log('[CustomEvent] handleEdit: CALLED. Event from closure:', event?.title); // Simplified log, using event from closure
 
-	const handleDelete = useCallback(
+		if (onEdit) { // onEdit is a prop of CustomEvent
+			console.log('[CustomEvent] handleEdit: Calling onEdit prop callback.');
+			onEdit();
+		} else {
+			console.error('[CustomEvent] handleEdit: No onEdit prop callback provided.');
+		}
+	}, [onEdit, event]); // Dependencies for useCallback
+
+	const handleDoubleClick = useCallback(
 		(e: React.MouseEvent) => {
-			console.log('Hello');
+			console.log('CustomEvent handleDoubleClick called for:', event.id, event.title);
 			e.stopPropagation();
-			deleteEvent(event.id);
+			e.preventDefault();
+			if (onEdit) {
+				console.log('Calling onEdit callback from double-click');
+				onEdit();
+			} else {
+				console.error('No onEdit callback provided for double-click');
+			}
 		},
-		[event.id, deleteEvent]
+		[onEdit, event]
 	);
 
 	const handleToggleDone = useCallback(
-		(e: React.MouseEvent) => {
+		async (e: React.MouseEvent) => {
+			console.log('Ee');
 			e.stopPropagation();
-			toggleEventDone(event.id);
+			e.preventDefault();
+
+			try {
+				await toggleEventDone(event.id);
+				toast(event.isDone ? 'Event marked as incomplete' : 'Event marked as complete');
+			} catch (error) {
+				console.error('Failed to toggle event status:', error);
+				toast('Failed to update event status');
+			}
 		},
-		[event.id, toggleEventDone]
+		[event.id, event.isDone, toggleEventDone, toast]
 	);
 
 	const handleInternalContextMenu = useCallback(
@@ -82,14 +98,6 @@ export default function CustomEvent({
 			onContextMenu?.(e, event);
 		},
 		[onContextMenu, event]
-	);
-
-	const handleToggleContent = useCallback(
-		(e: React.MouseEvent) => {
-			e.stopPropagation();
-			setIsContentExpanded(!isContentExpanded);
-		},
-		[isContentExpanded]
 	);
 
 	const handleDragStart = useCallback(
@@ -202,6 +210,48 @@ export default function CustomEvent({
 		return baseStyles;
 	};
 
+	const ActionsButton = ({
+		size = 'default',
+		event, // This is the event object passed as a prop to ActionsButton
+		onAction,
+	}: {
+		size?: 'default' | 'small';
+		event: any;
+		onAction: any;
+	}) => {
+		// Log info about the onAction prop when ActionsButton renders or re-renders
+		console.log('[ActionsButton] Props check. event.title:', event?.title, 'onAction type:', typeof onAction);
+
+		return (
+			<Button
+				variant='ghost'
+				size='icon'
+				className={cn(
+					'flex-shrink-0 text-white/80 hover:text-white hover:bg-white/20 relative z-20', // z-index was previously increased
+					size === 'small' ? 'h-4 w-4' : 'h-6 w-6'
+				)}
+				onClick={e => {
+						e.stopPropagation(); // Stop propagation
+						// This is the direct onClick handler for the shadcn Button
+						console.log('[ActionsButton] Internal onClick: Fired for event.title:', event?.title);
+						if (onAction) {
+							console.log('[ActionsButton] Internal onClick: Calling onAction...');
+							onAction(event); // Calling the function passed as onAction (which should be handleEdit)
+						} else {
+							console.warn('[ActionsButton] Internal onClick: onAction is undefined/null.');
+						}
+					}}
+					onMouseDown={e => {
+						e.stopPropagation();
+						console.log('[ActionsButton] Internal onMouseDown: Fired for event.title:', event?.title);
+					}}
+				type='button'
+			>
+				<MoreHorizontal className={cn(size === 'small' ? 'h-3 w-3' : 'h-4 w-4')} />
+			</Button>
+		);
+	};
+
 	if (view === 'month') {
 		return (
 			<div
@@ -233,7 +283,7 @@ export default function CustomEvent({
 				<Button
 					variant='ghost'
 					size='icon'
-					className='h-4 w-4 flex-shrink-0 p-0'
+					className='h-4 w-4 flex-shrink-0 p-0 text-white/80 hover:text-white hover:bg-white/20'
 					onClick={handleToggleDone}
 				>
 					{event.isDone ? (
@@ -264,44 +314,11 @@ export default function CustomEvent({
 					</span>
 				</div>
 
-				{/* Actions dropdown */}
-				<div
-					className={cn(
-						'flex-shrink-0 transition-opacity duration-200',
-						isHovered ? 'opacity-100' : 'opacity-0'
-					)}
-				>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button variant='ghost' size='icon' className='h-5 w-5 p-0'>
-								<MoreHorizontal className='h-3 w-3' />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent>
-							<DropdownMenuItem onClick={handleEdit}>
-								<Edit className='h-4 w-4 mr-2' />
-								Edit
-							</DropdownMenuItem>
-							<DropdownMenuItem onClick={handleToggleDone}>
-								{event.isDone ? (
-									<>
-										<Square className='h-4 w-4 mr-2' />
-										Mark Incomplete
-									</>
-								) : (
-									<>
-										<CheckSquare className='h-4 w-4 mr-2' />
-										Mark Complete
-									</>
-								)}
-							</DropdownMenuItem>
-							<DropdownMenuItem onClick={handleDelete} className='text-red-600'>
-								<Trash className='h-4 w-4 mr-2' />
-								Delete
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				</div>
+				<ActionsButton
+					event={event}
+					onAction={handleEdit}
+					size={event.isAllDay ? 'small' : 'default'}
+				/>
 			</div>
 		);
 	}
@@ -325,8 +342,7 @@ export default function CustomEvent({
 			onDragStart={handleDragStart}
 			onDragEnd={handleDragEnd}
 			onContextMenu={handleInternalContextMenu}
-			onMouseEnter={() => setIsHovered(true)}
-			onMouseLeave={() => setIsHovered(false)}
+			onDoubleClick={handleDoubleClick}
 		>
 			<LoadingOverlay />
 
@@ -339,7 +355,7 @@ export default function CustomEvent({
 					<Button
 						variant='ghost'
 						size='icon'
-						className='h-5 w-5 flex-shrink-0'
+						className='h-5 w-5 flex-shrink-0 text-white/80 hover:text-white hover:bg-white/20'
 						onClick={handleToggleDone}
 					>
 						{event.isDone ? (
@@ -376,59 +392,12 @@ export default function CustomEvent({
 					</div>
 				</div>
 
-				{/* Actions (visible on hover or for mobile) */}
-				<div
-					className={cn(
-						'flex items-center gap-1 transition-opacity duration-200',
-						isHovered ? 'opacity-100' : 'opacity-0 md:opacity-100'
-					)}
-				>
-					{shouldShowExpandButton && (
-						<Button
-							variant='ghost'
-							size='icon'
-							className='h-6 w-6'
-							onClick={handleToggleContent}
-							title={isContentExpanded ? 'Collapse content' : 'Expand content'}
-						>
-							{isContentExpanded ? (
-								<ChevronUp className='h-3 w-3' />
-							) : (
-								<ChevronDown className='h-3 w-3' />
-							)}
-						</Button>
-					)}
-
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button variant='ghost' size='icon' className='h-6 w-6'>
-								<MoreHorizontal className='h-3 w-3' />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent>
-							<DropdownMenuItem onClick={handleEdit}>
-								<Edit className='h-4 w-4 mr-2' />
-								Edit
-							</DropdownMenuItem>
-							<DropdownMenuItem onClick={handleToggleDone}>
-								{event.isDone ? (
-									<>
-										<Square className='h-4 w-4 mr-2' />
-										Mark Incomplete
-									</>
-								) : (
-									<>
-										<CheckSquare className='h-4 w-4 mr-2' />
-										Mark Complete
-									</>
-								)}
-							</DropdownMenuItem>
-							<DropdownMenuItem onClick={handleDelete} className='text-red-600'>
-								<Trash className='h-4 w-4 mr-2' />
-								Delete
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
+				<div className='flex items-center gap-1'>
+					<ActionsButton
+						event={event}
+						onAction={handleEdit}
+						size={event.isAllDay ? 'small' : 'default'}
+					/>
 				</div>
 			</div>
 

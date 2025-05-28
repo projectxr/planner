@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useEffect } from 'react'; // Removed useState
 import { useParams } from 'react-router-dom';
 import { Calendar, ViewsProps, dateFnsLocalizer, SlotInfo } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
@@ -77,11 +77,12 @@ export default function CalendarView({ className }: CalendarViewProps) {
 		draggedItem,
 		dragType,
 		handleCalendarDrop,
+		isFilterModalOpen, // Added from context
+		isCalendarModalOpen, // Added from context
+		openCalendarModal, // Added from context
+		isUserModalOpen, // Added from context
+		openUserModal, // Added from context
 	} = useCalendarEvents();
-
-	const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-	const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
-	const [isUserModalOpen, setIsUserModalOpen] = useState(false);
 
 	const calendarViews: ViewsProps<object, object> = useMemo(
 		() => ({
@@ -94,7 +95,6 @@ export default function CalendarView({ className }: CalendarViewProps) {
 		[]
 	);
 
-	// START: Added event handlers from original SELECTION
 	const handleEventDrop = useCallback(
 		({
 			event,
@@ -181,8 +181,14 @@ export default function CalendarView({ className }: CalendarViewProps) {
 	}, [dragType, draggedItem]);
 
 	const handleSelectEvent = useCallback(
-		(event: CalendarEvent) => {
-			openEditModal(event);
+		(event: CalendarEvent | any) => {
+			console.log('handleSelectEvent called with:', event);
+			const calendarEvent = event as CalendarEvent;
+			if (calendarEvent && calendarEvent.id) {
+				openEditModal(calendarEvent);
+			} else {
+				console.error('Invalid event object:', event);
+			}
 		},
 		[openEditModal]
 	);
@@ -299,11 +305,15 @@ export default function CalendarView({ className }: CalendarViewProps) {
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent>
-						<DropdownMenuItem onClick={() => setIsCalendarModalOpen(true)}>
+						<DropdownMenuItem onClick={openCalendarModal}>
+							{' '}
+							{/* Updated */}
 							<Settings className='h-4 w-4 mr-2' />
 							Calendar Settings
 						</DropdownMenuItem>
-						<DropdownMenuItem onClick={() => setIsUserModalOpen(true)}>
+						<DropdownMenuItem onClick={openUserModal}>
+							{' '}
+							{/* Updated */}
 							<Users className='h-4 w-4 mr-2' />
 							Manage Users
 						</DropdownMenuItem>
@@ -312,7 +322,6 @@ export default function CalendarView({ className }: CalendarViewProps) {
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</div>
-
 			{/* Calendar with integrated toolbar */}
 			<div className='flex-1 p-4 overflow-y-auto'>
 				<DragAndDropCalendar
@@ -324,12 +333,13 @@ export default function CalendarView({ className }: CalendarViewProps) {
 					views={calendarViews}
 					view={currentView as any}
 					date={currentDate}
-					onNavigate={setCurrentDate} // Changed from handleNavigate
-					onView={setCurrentView as any} // Changed from handleViewChange
+					onNavigate={setCurrentDate}
+					onView={setCurrentView as any}
 					selectable
 					resizable
 					onDragStart={event => handleDragStart(event as any)}
-					onSelectEvent={handleSelectEvent}
+					onSelectEvent={handleSelectEvent} // Single click to edit
+					onDoubleClickEvent={handleSelectEvent} // Double click to edit (backup)
 					onSelectSlot={handleSelectSlot}
 					onEventDrop={handleEventDrop}
 					onEventResize={handleEventResize}
@@ -342,16 +352,18 @@ export default function CalendarView({ className }: CalendarViewProps) {
 						event: props => (
 							<CustomEvent
 								{...props}
+								event={props.event as CalendarEvent}
+								title={props.title}
 								view={currentView}
 								onEdit={() => handleSelectEvent(props.event as CalendarEvent)}
 								onContextMenu={e => handleEventContextMenu(e, props.event as CalendarEvent)}
+								onDragStart={() => handleDragStart(props.event as CalendarEvent)}
 							/>
 						),
 					}}
 					longPressThreshold={10}
 				/>
 			</div>
-
 			{/* Context Menu */}
 			{contextMenu && contextMenu.event && (
 				<div
@@ -385,28 +397,24 @@ export default function CalendarView({ className }: CalendarViewProps) {
 					</div>
 				</div>
 			)}
-
 			{/* Modals */}
 			<EventModal
 				isOpen={isAddModalOpen || isEditModalOpen}
 				onClose={closeAllModals}
-				event={selectedEvent}
+				event={isEditModalOpen ? selectedEvent : null}
 				mode={isAddModalOpen ? 'add' : 'edit'}
 				defaultStart={isAddModalOpen ? slotSelectionStartDate || undefined : undefined}
 				defaultEnd={isAddModalOpen ? slotSelectionEndDate || undefined : undefined}
 			/>
-
-			<FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} />
-
+			<FilterModal isOpen={isFilterModalOpen} onClose={closeAllModals} /> {/* Updated */}
 			<CalendarModal
 				isOpen={isCalendarModalOpen}
-				onClose={() => setIsCalendarModalOpen(false)}
+				onClose={closeAllModals} /* Updated */
 				calendarId={activeCalendar?.uid} // Use activeCalendar's uid
 			/>
-
 			<UserManagementModal
 				isOpen={isUserModalOpen}
-				onClose={() => setIsUserModalOpen(false)}
+				onClose={closeAllModals} /* Updated */
 				calendarId={activeCalendar?.uid} // Use activeCalendar's uid
 			/>
 		</div>
