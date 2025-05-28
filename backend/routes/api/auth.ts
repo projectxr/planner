@@ -280,7 +280,9 @@ router.post('/getData', userAuth, async (req: Request, res: Response) => {
 			_id: {
 				$in: userObjectIds,
 			},
-		}).select('avatar name');
+		})
+			.select('avatar name')
+			.setOptions({ strictPopulate: false });
 		res.json(userData);
 	} catch (err) {
 		console.log('Get Data Error' + err);
