@@ -59,12 +59,10 @@ export default function CustomEvent({
 
 	const handleToggleDone = useCallback(
 		async (e: React.MouseEvent) => {
-			e.stopPropagation();
-			e.preventDefault();
-
+			e.stopPropagation(); // Prevent event from bubbling to parent handlers
 			try {
 				await toggleEventDone(event.id);
-				toast(event.isDone ? 'Event marked as incomplete' : 'Event marked as complete');
+				toast(event.isDone ? 'Marked incomplete' : 'Done!');
 			} catch (error) {
 				toast('Failed to update event status');
 			}
@@ -251,6 +249,9 @@ export default function CustomEvent({
 					size='icon'
 					className='h-4 w-4 flex-shrink-0 p-0 text-white/80 hover:text-white hover:bg-white/20'
 					onClick={handleToggleDone}
+					onMouseDown={e => {
+						e.stopPropagation();
+					}}
 				>
 					{event.isDone ? (
 						<CheckSquare className='h-3 w-3 text-green-400' />
@@ -317,6 +318,9 @@ export default function CustomEvent({
 						size='icon'
 						className='h-5 w-5 flex-shrink-0 text-white/80 hover:text-white hover:bg-white/20'
 						onClick={handleToggleDone}
+						onMouseDown={e => {
+							e.stopPropagation();
+						}}
 					>
 						{event.isDone ? (
 							<CheckSquare className='h-4 w-4 text-green-400' />

@@ -48,7 +48,7 @@ interface CalendarEventContextType {
 	contextMenu: ContextMenuData | null;
 
 	// Drag and drop
-	dragDropData: DragDropData, // Restored
+	dragDropData: DragDropData; // Restored
 
 	// Filters and loading
 	filters: FilterOptions;
@@ -151,7 +151,7 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 	const [dragType, setDragType] = useState<'calendar-event' | 'unscheduled-task' | null>(null);
 	const [updatingEvents, setUpdatingEvents] = useState<Set<string>>(new Set());
 
-	const [dragDropData, setDragDropData] = useState<DragDropData>({ // Restored
+	const [dragDropData, setDragDropData] = useState<DragDropData>({
 		draggedItem: null,
 		dragFromOutsideItem: null,
 	});
@@ -1038,14 +1038,11 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 
 				eventList.push({
 					...event, // Spread original event properties
-					// Create a more unique ID for the repeated event
 					id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_rep${i}`,
 					start: new Date(startDate),
 					end: new Date(endDate),
 					createdAt: new Date(), // New creation timestamp
 					updatedAt: new Date(), // New update timestamp
-					// Ensure essential fields like originalId or recurrenceRule are not part of a simple repeat if they exist on event
-					// For now, this simple spread is maintained as per original logic, but for true recurrence, this would be different.
 				});
 			}
 
@@ -1055,7 +1052,7 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 					apiClient.post('/api/events/add', {
 						uid, // Calendar UID to add to
 						// Ensure eventData sent to API includes the uid of the event itself
-						eventData: { ...eventItem, uid: event.uid, color }, 
+						eventData: { ...eventItem, uid: event.uid, color },
 					})
 				);
 
@@ -1163,7 +1160,7 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 		setSelectedEvent(event);
 		setIsEditModalOpen(true);
 		setIsAddModalOpen(false); // Ensure add modal is closed
-	console.log('Edit modal should now be open with event:', event.id, event.title);
+		console.log('Edit modal should now be open with event:', event.id, event.title);
 	}, []);
 
 	const openFilterModal = useCallback(() => setIsFilterModalOpen(true), []);
@@ -1187,9 +1184,10 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 		setCurrentDate(new Date());
 	}, []);
 
-	const handleDrop = useCallback( // Restored
+	const handleDrop = useCallback(
+		// Restored
 		async (dropData: { start: Date; end: Date; allDay?: boolean }) => {
-			const { draggedItem: itemToDrop } = dragDropData; // Renamed to avoid conflict with setDraggedItem parameter
+			const { draggedItem: itemToDrop } = dragDropData;
 			if (!itemToDrop) return;
 
 			const updatedItem = {
@@ -1200,16 +1198,13 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 			};
 
 			await updateEvent(updatedItem);
-			setDraggedItem(null); // This is the setDraggedItem from the context's direct state
+			setDraggedItem(null);
 		},
-		[dragDropData, updateEvent, setDraggedItem] // setDraggedItem is a dependency from the outer scope
+		[dragDropData, updateEvent, setDraggedItem]
 	);
 
-	// Filter effects
 	useEffect(() => {
 		let result = [...events];
-
-		// Apply visibility filter first
 		result = result.filter(event => visibleCalendars.has(event.uid));
 
 		if (filters.search) {
@@ -1283,7 +1278,6 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 			};
 		};
 
-		// Deduplicate tasks by ID, giving preference to items from 'tasks'
 		const taskMap = new Map<string, Task>();
 		tasks.forEach(task => {
 			if (visibleCalendars.has(task.uid)) {
@@ -1318,10 +1312,6 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 		setFilteredTasks(resultTasks);
 	}, [events, tasks, filters, visibleCalendars]);
 
-	// const isAllCalendarsView = useCallback(() => { // Moved to the top
-	// 	const path = window.location.pathname;
-	// 	return path === '/home' || path === '/' || (!activeCalendar && path.includes('/home'));
-	// }, [activeCalendar]);
 	useEffect(() => {
 		console.log('CalendarEventContext Debug:', {
 			pathname: window.location.pathname,
@@ -1336,33 +1326,25 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 	useEffect(() => {
 		const loadData = async () => {
 			if (!user) {
-				// Clear data when user logs out or is not available
 				setEvents([]);
 				setTasks([]);
 				setLoading(false);
 				return;
 			}
 
-			// setLoading(true) should be here to cover the entire async operation
 			setLoading(true);
 
 			if (isAllCalendarsView() && visibleCalendars.size > 0) {
 				console.log('Loading All Calendars view with calendars:', Array.from(visibleCalendars));
-				// Pass undefined to fetchEvents/fetchTasks for "all calendars" scenario
 				await Promise.all([fetchEvents(undefined), fetchTasks(undefined)]);
 			} else if (activeCalendar && !isAllCalendarsView()) {
 				console.log('Loading single calendar view:', activeCalendar.uid);
 				await Promise.all([fetchEvents(activeCalendar.uid), fetchTasks(activeCalendar.uid)]);
 			} else {
-				// If no specific calendar is active and not in "all calendars" view,
-				// or no visible calendars for "all" view, perhaps clear or do nothing.
-				// Potentially set loading to false if no fetch is made.
 				setLoading(false);
 			}
 
 			if (currentView === 'agenda') {
-				// fetchAgenda might also need similar protection if it sets shared state
-				// and can be called during view transitions.
 				await fetchAgenda();
 			}
 		};
