@@ -1,4 +1,4 @@
-import { Sequelize, STRING, DATE, BOOLEAN, ARRAY, INTEGER, TEXT } from 'sequelize';
+import { Sequelize, STRING, DATE, BOOLEAN, ARRAY, INTEGER, TEXT, FLOAT } from 'sequelize';
 import { Schema, model } from 'mongoose';
 import { PrivacyType } from '../utils/consts';
 
@@ -103,11 +103,11 @@ const EventData = (sequelize: Sequelize) => {
 
 			// Time Tracking
 			estimatedHours: {
-				type: INTEGER,
+				type: FLOAT,
 				allowNull: true,
 			},
 			actualHours: {
-				type: INTEGER,
+				type: FLOAT,
 				allowNull: true,
 			},
 
