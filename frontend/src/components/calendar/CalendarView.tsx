@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Calendar, ViewsProps, dateFnsLocalizer, SlotInfo } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import { CalendarEvent } from '@/lib/types';
-import { format, startOfWeek, getDay, parse, parseISO } from 'date-fns';
+import { format, startOfWeek as baseStartOfWeek, getDay, parse, parseISO } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
@@ -31,6 +31,10 @@ import UserManagementModal from '../modals/UserManagementModal';
 
 const locales = {
 	'en-US': enUS,
+};
+
+const startOfWeek = (date: Date) => {
+	return baseStartOfWeek(date, { weekStartsOn: 1 });
 };
 
 const localizer = dateFnsLocalizer({
