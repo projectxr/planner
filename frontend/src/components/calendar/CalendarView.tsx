@@ -20,6 +20,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 import CustomToolbar from './CustomToolbar';
@@ -368,38 +369,45 @@ export default function CalendarView({ className }: CalendarViewProps) {
 					longPressThreshold={10}
 				/>
 			</div>
-			{/* Context Menu */}
 			{contextMenu && contextMenu.event && (
-				<div
-					className='fixed bg-white border rounded-md shadow-lg z-50 py-1 min-w-[160px]'
-					style={{
-						top: contextMenu.mouseY,
-						left: contextMenu.mouseX,
+				<Popover
+					open={!!contextMenu}
+					onOpenChange={isOpen => {
+						if (!isOpen) handleCloseContextMenu();
 					}}
-					onMouseLeave={handleCloseContextMenu}
 				>
-					<div
-						className='px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm'
-						onClick={() => handleRepeatEvent(1)}
+					<PopoverContent
+						className='py-1 min-w-[160px] w-auto bg-slate-800 z-30'
+						onEscapeKeyDown={handleCloseContextMenu}
+						style={{
+							position: 'fixed',
+							top: `${contextMenu.mouseY}px`,
+							left: `${contextMenu.mouseX}px`,
+						}}
 					>
-						<Repeat className='h-4 w-4 inline mr-2' />
-						Repeat Tomorrow
-					</div>
-					<div
-						className='px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm'
-						onClick={() => handleRepeatEvent(7)}
-					>
-						<Repeat className='h-4 w-4 inline mr-2' />
-						Repeat For a Week
-					</div>
-					<div className='border-t my-1' />
-					<div
-						className='px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-500'
-						onClick={handleCloseContextMenu}
-					>
-						Close
-					</div>
-				</div>
+						<div
+							className='px-2 py-1.5 rounded-sm cursor-pointer text-sm hover:bg-accent hover:text-accent-foreground flex items-center z-50000'
+							onClick={() => handleRepeatEvent(1)}
+						>
+							<Repeat className='h-4 w-4 mr-2' />
+							Repeat Tomorrow
+						</div>
+						<div
+							className='px-2 py-1.5 rounded-sm cursor-pointer text-sm hover:bg-accent hover:text-accent-foreground flex items-center'
+							onClick={() => handleRepeatEvent(7)}
+						>
+							<Repeat className='h-4 w-4 mr-2' />
+							Repeat For a Week
+						</div>
+						<div className='border-t my-1' /> {/* Separator */}
+						<div
+							className='px-2 py-1.5 rounded-sm cursor-pointer text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground flex items-center'
+							onClick={handleCloseContextMenu}
+						>
+							Close
+						</div>
+					</PopoverContent>
+				</Popover>
 			)}
 			{/* Modals */}
 			<EventModal

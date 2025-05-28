@@ -1037,12 +1037,15 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 				endDate = new Date(endDate.getTime() + 24 * 60 * 60 * 1000);
 
 				eventList.push({
-					...event,
-					id: `${event.id}_repeat_${i}`,
+					...event, // Spread original event properties
+					// Create a more unique ID for the repeated event
+					id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_rep${i}`,
 					start: new Date(startDate),
 					end: new Date(endDate),
-					createdAt: new Date(),
-					updatedAt: new Date(),
+					createdAt: new Date(), // New creation timestamp
+					updatedAt: new Date(), // New update timestamp
+					// Ensure essential fields like originalId or recurrenceRule are not part of a simple repeat if they exist on event
+					// For now, this simple spread is maintained as per original logic, but for true recurrence, this would be different.
 				});
 			}
 
@@ -1050,13 +1053,21 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 				const { uid, color } = getCurrentCalendarInfo(event.uid);
 				const promises = eventList.map(eventItem =>
 					apiClient.post('/api/events/add', {
-						uid,
-						eventData: { ...eventItem, color },
+						uid, // Calendar UID to add to
+						// Ensure eventData sent to API includes the uid of the event itself
+						eventData: { ...eventItem, uid: event.uid, color }, 
 					})
 				);
 
 				await Promise.all(promises);
-				await fetchEvents(event.uid, true);
+
+				// Refresh events based on the current view
+				if (isAllCalendarsView()) {
+					await fetchEvents(undefined, true); // Fetch for all visible calendars if in 'All Calendars' view
+				} else {
+					// Otherwise, fetch for the specific calendar the original event belonged to
+					await fetchEvents(event.uid, true);
+				}
 
 				toast({
 					title: 'Success',
@@ -1071,7 +1082,7 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 				});
 			}
 		},
-		[events, getCurrentCalendarInfo, fetchEvents, toast]
+		[events, getCurrentCalendarInfo, fetchEvents, toast, isAllCalendarsView, activeCalendar]
 	);
 
 	// Bulk update events
