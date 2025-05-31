@@ -71,7 +71,7 @@ router.post(
 				if (potentialCalendar && !potentialCalendar.owner) {
 					// Claim existing unowned calendar
 					potentialCalendar.owner = userId;
-					potentialCalendar.collaborators.push({
+					potentialCalendar.users.push({
 						user: userId,
 						role: 'admin', // Or 'owner' if you add it to the enum
 						canRead: true,
@@ -95,7 +95,7 @@ router.post(
 					uid: newGeneratedUid,
 					calendarName: 'Simple Calendar',
 					owner: userId,
-					collaborators: [
+					users: [
 						{
 							user: userId,
 							role: 'admin', // Or 'owner' if you add it to the enum

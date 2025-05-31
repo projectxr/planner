@@ -67,7 +67,7 @@ router.post('/createPersonal', userAuth, async (req: Request, res: Response) => 
 			isPrivate,
 			settings,
 			owner: user._id,
-			collaborators: [
+			users: [
 				{
 					user: user._id,
 					role: 'admin',

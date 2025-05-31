@@ -257,7 +257,7 @@ const CalendarSchema = new Schema(
 			enum: Object.values(PrivacyType),
 			default: PrivacyType.WRITE,
 		},
-		collaborators: [
+		users: [
 			{
 				user: {
 					type: Schema.Types.ObjectId,
@@ -333,7 +333,7 @@ const CalendarSchema = new Schema(
 
 // Indexes
 CalendarSchema.index({ owner: 1, archived: 1 });
-CalendarSchema.index({ 'collaborators.user': 1 });
+CalendarSchema.index({ 'users.user': 1 });
 CalendarSchema.index({ uid: 1 }, { unique: true });
 
 // Virtual for checking if user has access
@@ -349,7 +349,7 @@ CalendarSchema.virtual('userAccess').get(function (this: any) {
 			};
 		}
 
-		const collaborator = this.collaborators.find((c: any) => c.user.toString() === userId);
+		const collaborator = this.users.find((c: any) => c.user.toString() === userId);
 		return (
 			collaborator || {
 				canRead: false,
