@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
+// import { Switch } from '@/components/ui/switch'; // No longer used directly here
 import { Separator } from '@/components/ui/separator';
 import {
 	DropdownMenu,
@@ -19,12 +19,11 @@ import {
 	Users,
 	MoreHorizontal,
 	Calendar,
-	Palette,
+	// Palette, // Removed
 	Loader2,
 	Home,
 	ChevronRight,
 	Star,
-	StarOff,
 	Archive,
 	Trash2,
 	Share2,
@@ -33,6 +32,7 @@ import {
 	CheckSquare,
 	Square,
 	Clock,
+	// Palette, // Confirming removal again, as it was flagged by lint and should be gone.
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCalendarEvents } from '@/contexts/EventContext';
@@ -40,7 +40,7 @@ import { useCalendars } from '@/contexts/CalendarContext';
 import { useToast } from '@/components/ui/use-toast';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { CalendarUser, CalendarData } from '@/lib/types';
-import CalendarModal from '../modals/CalendarModal';
+import CalendarModal from '@/components/modals/CalendarModal';
 
 interface MyCalendarItem {
 	calendar: CalendarData;
@@ -58,9 +58,9 @@ type CalendarGroup = {
 
 export default function CalendarSidebar() {
 	const {
-		visibleCalendars,
-		toggleCalendarVisibility,
-		setCalendarColor,
+		visibleCalendars, // Still needed for isVisible prop
+		// toggleCalendarVisibility, // Removed
+		// setCalendarColor, // Removed
 		syncStatus,
 		refreshAll,
 		refreshCalendar,
@@ -77,11 +77,12 @@ export default function CalendarSidebar() {
 	const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
 		new Set(['shared', 'unscheduled-tasks'])
 	);
-	const [favorites, setFavorites] = useState<Set<string>>(
+	const [favorites, /* setFavorites */] = useState<Set<string>>( // setFavorites no longer used directly
 		new Set(JSON.parse(localStorage.getItem('favorite-calendars') || '[]'))
 	);
 	const [isDragOver, setIsDragOver] = useState(false);
 	const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
+	const [editingCalendarId, setEditingCalendarId] = useState<string | undefined>(undefined);
 
 	const myDisplayCalendars: MyCalendarItem[] = calendars.map(calData => ({
 		calendar: calData,
@@ -115,21 +116,15 @@ export default function CalendarSidebar() {
 		}))
 		.filter(group => group.calendars.length > 0);
 
-	const handleToggleVisibility = async (calendarUid: string) => {
-		toggleCalendarVisibility(calendarUid);
-		const isVisible = visibleCalendars.has(calendarUid);
-		toast({
-			title: `Calendar ${isVisible ? 'hidden' : 'shown'}`,
-			description: `Calendar visibility has been ${isVisible ? 'hidden' : 'shown'}`,
-		});
-	};
-
-	const handleColorChange = (calendarUid: string, color: string) => {
-		setCalendarColor(calendarUid, color);
-		toast({
-			title: 'Color updated',
-			description: 'Calendar color has been updated',
-		});
+	// Removed handleToggleVisibility, handleColorChange as their functionalities 
+	// are to be accessed via CalendarModal triggered by onOpenSettings.
+	
+	const handleOpenCalendarSettingsFromItem = (calendarUid: string) => {
+		// Set the calendar ID to edit and pass it to the modal
+		const calendar = calendars.find(cal => cal.uid === calendarUid);
+		setEditingCalendarId(calendarUid);
+		setIsCalendarModalOpen(true);
+		console.log('Opening calendar settings from sidebar for:', calendar?.calendarName || calendar?.name);
 	};
 
 	const handleNavigateToCalendar = (calendarUid: string | null) => {
@@ -143,22 +138,8 @@ export default function CalendarSidebar() {
 		}
 	};
 
-	const handleToggleFavorite = (calendarUid: string) => {
-		const newFavorites = new Set(favorites);
-		if (newFavorites.has(calendarUid)) {
-			newFavorites.delete(calendarUid);
-		} else {
-			newFavorites.add(calendarUid);
-		}
-		setFavorites(newFavorites);
-		localStorage.setItem('favorite-calendars', JSON.stringify([...newFavorites]));
-
-		toast({
-			title: newFavorites.has(calendarUid) ? 'Added to favorites' : 'Removed from favorites',
-			description: 'Calendar favorites updated',
-		});
-	};
-
+	// handleToggleFavorite removed - this functionality should be within CalendarModal
+	
 	const handleToggleGroup = (groupName: string) => {
 		const newExpanded = new Set(expandedGroups);
 		if (newExpanded.has(groupName)) {
@@ -332,13 +313,8 @@ export default function CalendarSidebar() {
 													isVisible={visibleCalendars.has(calendarItem.calendar.uid)}
 													isFavorite={favorites.has(calendarItem.calendar.uid)}
 													onNavigate={() => handleNavigateToCalendar(calendarItem.calendar.uid)}
-													onToggleVisibility={() =>
-														handleToggleVisibility(calendarItem.calendar.uid)
-													}
-													onColorChange={color =>
-														handleColorChange(calendarItem.calendar.uid, color)
-													}
-													onToggleFavorite={() => handleToggleFavorite(calendarItem.calendar.uid)}
+													// Removed onToggleVisibility, onColorChange, onToggleFavorite
+													onOpenSettings={() => handleOpenCalendarSettingsFromItem(calendarItem.calendar.uid)}
 													onRefresh={() => handleRefreshCalendar(calendarItem.calendar.uid)}
 												/>
 											))}
@@ -441,8 +417,9 @@ export default function CalendarSidebar() {
 					isOpen={isCalendarModalOpen}
 					onClose={() => {
 						setIsCalendarModalOpen(false);
+						setEditingCalendarId(undefined); // Reset editing ID
 					}}
-					calendarId={undefined}
+					calendarId={editingCalendarId} // Use editingCalendarId
 				/>
 			)}
 		</div>
@@ -589,12 +566,10 @@ function TaskItem({ task, onToggleComplete, onEdit }: TaskItemProps) {
 interface CalendarItemProps {
 	calendar: MyCalendarItem;
 	isActive: boolean;
-	isVisible: boolean;
-	isFavorite: boolean;
+	isVisible: boolean; // Still needed for styling
+	isFavorite: boolean; // Still needed for displaying star icon
 	onNavigate: () => void;
-	onToggleVisibility: () => void;
-	onColorChange: (color: string) => void;
-	onToggleFavorite: () => void;
+	onOpenSettings: () => void; // New prop
 	onRefresh: () => void;
 }
 
@@ -604,27 +579,13 @@ function CalendarItem({
 	isVisible,
 	isFavorite,
 	onNavigate,
-	onToggleVisibility,
-	onColorChange,
-	onToggleFavorite,
+	onOpenSettings, // Changed props
 	onRefresh,
 }: CalendarItemProps) {
 	const users: CalendarUser[] = calendar.calendar.users || [];
 
-	const colorOptions = [
-		'#3174ad',
-		'#dc2626',
-		'#059669',
-		'#7c3aed',
-		'#ea580c',
-		'#0891b2',
-		'#be185d',
-		'#4338ca',
-		'#f59e0b',
-		'#10b981',
-		'#6366f1',
-		'#ec4899',
-	];
+	// colorOptions no longer needed here as color picker is removed
+	// const colorOptions = [ ... ]; 
 
 	return (
 		<div
@@ -661,56 +622,11 @@ function CalendarItem({
 				</div>
 			</div>
 
-			{/* Controls - Visible on hover */}
-			<div className='flex items-center justify-between mt-3 gap-2 opacity-0 group-hover:opacity-100 transition-opacity'>
-				<div className='flex items-center gap-2'>
-					{/* Visibility toggle */}
-					<Switch
-						checked={isVisible}
-						onCheckedChange={onToggleVisibility}
-						className='scale-75 data-[state=checked]:bg-primary'
-					/>
-					<span className='text-xs text-muted-foreground'>{isVisible ? 'Visible' : 'Hidden'}</span>
-				</div>
-
+			{/* Controls - Visible on hover - Simplified */}
+			<div className='flex items-center justify-end mt-3 gap-2 opacity-0 group-hover:opacity-100 transition-opacity'>
+				{/* Visibility toggle, Favorite toggle, and Color picker removed */}
+				{/* Only "More actions" dropdown remains in this control row */ }
 				<div className='flex items-center gap-1'>
-					{/* Favorite toggle */}
-					<Button
-						variant='ghost'
-						size='sm'
-						className='h-7 w-7 p-0'
-						onClick={onToggleFavorite}
-						title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-					>
-						{isFavorite ? (
-							<Star className='h-3 w-3 text-yellow-500 fill-current' />
-						) : (
-							<StarOff className='h-3 w-3' />
-						)}
-					</Button>
-
-					{/* Color picker */}
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button variant='ghost' size='sm' className='h-7 w-7 p-0' title='Change color'>
-								<Palette className='h-3 w-3' />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent>
-							<div className='grid grid-cols-4 gap-2 p-2'>
-								{colorOptions.map(color => (
-									<button
-										key={color}
-										className='w-6 h-6 rounded-full border-2 border-gray-200 hover:border-gray-400 hover:scale-110 transition-all'
-										style={{ backgroundColor: color }}
-										onClick={() => onColorChange(color)}
-										title={`Change to ${color}`}
-									/>
-								))}
-							</div>
-						</DropdownMenuContent>
-					</DropdownMenu>
-
 					{/* More actions */}
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
@@ -724,11 +640,11 @@ function CalendarItem({
 								Refresh Calendar
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
-							<DropdownMenuItem>
+							<DropdownMenuItem onClick={onOpenSettings}> {/* Calls prop to open modal */}
 								<Settings className='h-4 w-4 mr-2' />
 								Calendar Settings
 							</DropdownMenuItem>
-							<DropdownMenuItem>
+							<DropdownMenuItem> {/* This likely opens a different modal or navigates */}
 								<Users className='h-4 w-4 mr-2' />
 								Manage Users
 							</DropdownMenuItem>

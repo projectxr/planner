@@ -94,7 +94,7 @@ router.post('/createPersonal', userAuth, async (req: Request, res: Response) => 
 router.post('/getData', async (req: Request, res: Response) => {
 	try {
 		const { uid } = req.body;
-		let calendar = await Calendar.findOne({ uid }).select('-_id').populate('users');
+		let calendar = await Calendar.findOne({ uid }).select('-_id').populate('users', {strictPopulate: false});
 		if (!calendar) {
 			return res.status(ErrorCode.HTTP_BAD_REQ).json({ errors: { msg: 'Invalid Calendar Id' } });
 		}

@@ -102,13 +102,14 @@ export default function CalendarModal({ isOpen, onClose, calendarId }: CalendarM
 				setCalendarData(calendar);
 
 				form.reset({
-					// Use calendarName from the API response, as calendar.name will likely be undefined here
-					name: calendar.calendarName || '', 
+					name: calendar.calendarName || calendar.name || '', 
 					description: calendar.description || '',
 					color: calendar.color || '#3174ad',
-					isPrivate: calendar.isPrivate,
+					isPrivate: calendar.isPrivate || false,
 					settings: calendar.settings || initialFormValues.settings,
 				});
+
+				console.log('Loaded calendar data for editing:', calendar);
 			} catch (error) {
 				console.error('Failed to load calendar data:', error);
 				toast({
@@ -156,7 +157,7 @@ export default function CalendarModal({ isOpen, onClose, calendarId }: CalendarM
 				if (newCalendar) {
 					toast({
 						title: 'Success',
-						description: `Calendar "${newCalendar.name}" created successfully.`,
+						description: `Calendar "${newCalendar.calendarName || newCalendar.name}" created successfully.`,
 					});
 				} else {
 					throw new Error('Failed to create calendar.');

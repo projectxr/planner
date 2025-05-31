@@ -4,7 +4,7 @@ import Header from './Header';
 import EventModal from '@/components/modals/EventModal';
 import FilterModal from '@/components/modals/FilterModal';
 import { CalendarEvent, Task, EventStatus, PriorityLevel } from '@/lib/types';
-import CalendarSidebar from '@/components/calendar/CalendarSidebar';
+import CalendarSidebar from '@/components/layout/CalendarSidebar';
 
 export interface ModalControlContextType {
 	openEventModal: (event?: CalendarEvent, start?: Date, end?: Date) => void;

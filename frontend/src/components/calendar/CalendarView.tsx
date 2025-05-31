@@ -299,33 +299,8 @@ export default function CalendarView({ className }: CalendarViewProps) {
 						? activeCalendar.name
 						: routeCalendarId === 'home'
 						? 'All Calendars'
-						: 'Calendar'}
+						: 'Home'}
 				</h1>
-
-				{/* Only high-level settings - no duplicate controls */}
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button variant='outline' size='sm'>
-							<MoreHorizontal className='h-4 w-4' />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent>
-						<DropdownMenuItem onClick={openCalendarModal}>
-							{' '}
-							{/* Updated */}
-							<Settings className='h-4 w-4 mr-2' />
-							Calendar Settings
-						</DropdownMenuItem>
-						<DropdownMenuItem onClick={openUserModal}>
-							{' '}
-							{/* Updated */}
-							<Users className='h-4 w-4 mr-2' />
-							Manage Users
-						</DropdownMenuItem>
-						<DropdownMenuSeparator />
-						<DropdownMenuItem>Export Calendar</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
 			</div>
 			{/* Calendar with integrated toolbar */}
 			<div className='flex-1 p-4 overflow-y-auto'>

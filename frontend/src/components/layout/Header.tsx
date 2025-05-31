@@ -1,4 +1,13 @@
-import { Search, ChevronDown, Home, List, Settings, PlusSquare, Calendar, User as UserIcon } from 'lucide-react';
+import {
+	Search,
+	ChevronDown,
+	Home,
+	List,
+	Settings,
+	PlusSquare,
+	Calendar,
+	User as UserIcon,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -38,7 +47,6 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 	const [nameOfUser, setNameOfUser] = useState('');
 	const [isUserPopoverOpen, setIsUserPopoverOpen] = useState(false);
 
-
 	useEffect(() => {
 		if (user) {
 			setNameOfUser(user.name || '');
@@ -59,7 +67,8 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 	};
 
 	const onUserNameSaved = async () => {
-		if (user && nameOfUser !== user.name) { // Changed userDetails to user
+		if (user && nameOfUser !== user.name) {
+			// Changed userDetails to user
 			await updateUserName(nameOfUser);
 			// Optionally, close popover or show success message
 		}
@@ -82,8 +91,10 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 	};
 
 	const handleOpenSettingsModal = (calendarId: string) => {
+		// Set the calendar ID to edit, which will be passed to CalendarModal
 		setEditingCalendarId(calendarId);
 		setIsCalendarModalOpen(true);
+		console.log('Opening calendar settings modal for calendar ID:', calendarId);
 	};
 
 	const handleOpenAddCalendarModal = () => {
@@ -257,37 +268,35 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 					{/* User Settings Popover */}
 					<Popover open={isUserPopoverOpen} onOpenChange={setIsUserPopoverOpen}>
 						<PopoverTrigger asChild>
-							<Button variant="ghost" size="icon" className="ml-2">
-								<UserIcon className="h-5 w-5" />
+							<Button variant='ghost' size='icon' className='ml-2'>
+								<UserIcon className='h-5 w-5' />
 							</Button>
 						</PopoverTrigger>
-						<PopoverContent className="w-80">
-							<div className="grid gap-4">
-								<div className="space-y-2">
-									<h4 className="font-medium leading-none">User Settings</h4>
-									<p className="text-sm text-muted-foreground">
-										Manage your account settings.
-									</p>
+						<PopoverContent className='w-80'>
+							<div className='grid gap-4'>
+								<div className='space-y-2'>
+									<h4 className='font-medium leading-none'>User Settings</h4>
+									<p className='text-sm text-muted-foreground'>Manage your account settings.</p>
 								</div>
-								<div className="grid gap-2">
-									<div className="grid grid-cols-3 items-center gap-4">
+								<div className='grid gap-2'>
+									<div className='grid grid-cols-3 items-center gap-4'>
 										<Input
-											id="userName"
+											id='userName'
 											value={nameOfUser}
 											onChange={onUserNameChanged}
 											onBlur={onUserNameSaved} // Save on blur
-											className="col-span-2 h-8"
+											className='col-span-2 h-8'
 										/>
-										<Button onClick={onUserNameSaved} size="sm" className="col-span-1">
+										<Button onClick={onUserNameSaved} size='sm' className='col-span-1'>
 											Save Name
 										</Button>
 									</div>
-									<div className="grid grid-cols-3 items-center gap-4">
-										<span className="col-span-2 text-sm">
+									<div className='grid grid-cols-3 items-center gap-4'>
+										<span className='col-span-2 text-sm'>
 											Default Calendar: {user?.myCalendar?.calendarName || 'Not set'}
 										</span>
 									</div>
-									<Button variant="outline" onClick={showSignOutModal} className="w-full">
+									<Button variant='outline' onClick={showSignOutModal} className='w-full'>
 										Sign Out
 									</Button>
 								</div>
