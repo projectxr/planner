@@ -84,9 +84,7 @@ export default function CalendarView({ className }: CalendarViewProps) {
 		handleCalendarDrop,
 		isFilterModalOpen, // Added from context
 		isCalendarModalOpen, // Added from context
-		openCalendarModal, // Added from context
 		isUserModalOpen, // Added from context
-		openUserModal, // Added from context
 	} = useCalendarEvents();
 
 	const calendarViews: ViewsProps<object, object> = useMemo(

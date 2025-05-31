@@ -94,7 +94,13 @@ router.post('/createPersonal', userAuth, async (req: Request, res: Response) => 
 router.post('/getData', async (req: Request, res: Response) => {
 	try {
 		const { uid } = req.body;
-		let calendar = await Calendar.findOne({ uid }).select('-_id').populate('users', {strictPopulate: false});
+		let calendar = await Calendar.findOne({ uid })
+			.select('-_id')
+			.populate({
+				path: 'users',
+				options: { strictPopulate: false }
+			});
+		
 		if (!calendar) {
 			return res.status(ErrorCode.HTTP_BAD_REQ).json({ errors: { msg: 'Invalid Calendar Id' } });
 		}
@@ -104,6 +110,7 @@ router.post('/getData', async (req: Request, res: Response) => {
 		res.status(ErrorCode.HTTP_SERVER_ERROR).json({ errors: { msg: 'Server Error!' } });
 	}
 });
+
 
 // @route       POST api/calendar/update
 // @desc        Update Calendar Data
