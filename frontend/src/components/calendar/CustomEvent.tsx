@@ -8,14 +8,16 @@ import {
 	Flag,
 	MoreHorizontal,
 	FileText,
+	Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
 import { CalendarEvent, PRIORITY_COLORS } from '@/lib/types';
 import { formatTime, cn } from '@/lib/utils';
 import { useEvents } from '@/contexts/EventContext';
-import { useMDXParser } from '@/lib/mdx-parser';
+import { MDXEditorComponent } from '@/components/MDXEditor';
 import { toast } from 'sonner';
 
 interface CustomEventProps {
@@ -35,7 +37,7 @@ export default function CustomEvent({
 	onContextMenu,
 	onDragStart,
 }: CustomEventProps) {
-	const { toggleEventDone, startDrag, endDrag, updatingEvents } = useEvents();
+	const { toggleEventDone, startDrag, endDrag, updatingEvents, updateEvent } = useEvents();
 	const [isHovered, setIsHovered] = useState(false);
 	const [isCurrentlyDragging, setIsCurrentlyDragging] = useState(false);
 	const isEventUpdating = updatingEvents.has(event.id);
@@ -137,14 +139,8 @@ export default function CustomEvent({
 	const calendarEventColor = event.color || 'rgb(49, 116, 173)';
 	const priorityColor = PRIORITY_COLORS[event.priority] || PRIORITY_COLORS.medium;
 
-	const parsedContent = useMDXParser(event.content || '', {
-		maxImageHeight: '120px',
-		codeBlockTheme: 'auto',
-		allowHTML: false,
-	});
 
 	const hasRichContent = Boolean(event.content?.trim());
-	const shouldShowExpandButton = hasRichContent && parsedContent.length > 200;
 
 	const LoadingOverlay = () => {
 		if (!isEventUpdating) return null;
@@ -268,14 +264,33 @@ export default function CustomEvent({
 						</span>
 					)}
 
-					<span
-						className={cn(
-							'font-medium truncate text-sm flex-1',
-							event.isDone && 'line-through text-gray-400'
+					<div className="flex items-center gap-1 flex-1">
+						<span
+							className={cn(
+								'font-medium truncate text-sm flex-1',
+								event.isDone && 'line-through text-gray-400'
+							)}
+						>
+							{title}
+						</span>
+						{hasRichContent && (
+							<Popover>
+								<PopoverTrigger asChild>
+									<Button
+										variant="ghost"
+										size="icon"
+										className="h-5 w-5 p-0 text-white/80 hover:text-white hover:bg-white/20"
+										onMouseDown={e => e.stopPropagation()}
+									>
+										<Eye className="h-3 w-3" />
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent className="max-w-md p-2 bg-gray-900 border-gray-800">
+									<MDXEditorComponent content={event.content || ''} viewOnly maxHeight="300px" className="overflow-y-auto" />
+								</PopoverContent>
+							</Popover>
 						)}
-					>
-						{title}
-					</span>
+					</div>
 				</div>
 
 				<ActionsButton
@@ -295,7 +310,9 @@ export default function CustomEvent({
 				event.isDone && 'opacity-75',
 				isHovered && 'shadow-lg',
 				isCurrentlyDragging && 'opacity-50 scale-95',
-				isEventUpdating && 'ring-2 ring-blue-400 ring-opacity-50'
+				isEventUpdating && 'ring-2 ring-blue-400 ring-opacity-50',
+				// Add special styling for all-day events in time slots
+				event.isAllDay && view !== 'month' && 'min-h-[60px] border-2 border-dashed border-white/30'
 			)}
 			style={{
 				...getEventStyles(),
@@ -308,9 +325,9 @@ export default function CustomEvent({
 			onDoubleClick={handleDoubleClick}
 		>
 			<LoadingOverlay />
-
+	
 			{isEventUpdating && <div className='absolute inset-0 z-5 cursor-not-allowed' />}
-
+	
 			<div className='flex items-start justify-between gap-1'>
 				<div className='flex items-center gap-1 overflow-hidden flex-1'>
 					<Button
@@ -328,9 +345,9 @@ export default function CustomEvent({
 							<Square className='h-4 w-4 text-gray-300' />
 						)}
 					</Button>
-
+	
 					<div className='flex flex-col flex-1 min-w-0'>
-						<div className='flex items-center gap-1'>
+						<div className='flex items-center gap-1 flex-wrap'>
 							{!event.isAllDay && event.start && (
 								<span className='text-xs text-gray-200 whitespace-nowrap'>
 									<Clock className='h-3 w-3 inline mr-1' />
@@ -344,18 +361,28 @@ export default function CustomEvent({
 							)}
 							{hasRichContent && <FileText className='h-3 w-3 text-gray-300' />}
 						</div>
-
-						<span
-							className={cn(
-								'font-medium truncate text-sm',
-								event.isDone && 'line-through text-gray-400'
-							)}
-						>
-							{title}
-						</span>
+	
+						<div className="flex items-center gap-1">
+							<span
+								className={cn(
+									'font-medium text-sm leading-tight',
+									event.isDone && 'line-through text-gray-400',
+									// Better text wrapping for all-day events
+									event.isAllDay && view !== 'month' && 'font-semibold'
+								)}
+								style={{
+									// Allow text wrapping for all-day events
+									whiteSpace: event.isAllDay && view !== 'month' ? 'normal' : 'nowrap',
+									overflow: event.isAllDay && view !== 'month' ? 'visible' : 'hidden',
+									textOverflow: event.isAllDay && view !== 'month' ? 'initial' : 'ellipsis'
+								}}
+							>
+								{title}
+							</span>
+						</div>
 					</div>
 				</div>
-
+	
 				<div className='flex items-center gap-1'>
 					<ActionsButton
 						event={event}
@@ -364,28 +391,54 @@ export default function CustomEvent({
 					/>
 				</div>
 			</div>
-
+	
 			<div className='flex-1 mt-1'>
 				{event.description && !event.isAllDay && (
 					<div className='text-xs text-gray-200 mt-1 line-clamp-2'>{event.description}</div>
 				)}
-
-				{hasRichContent && parsedContent && (
+	
+				{/* Fixed MDX rendering - only show for non-all-day events */}
+				{hasRichContent && event.content && view !== 'month' && !event.isAllDay && (
 					<div className='mt-2'>
-						<div
-							className={cn('max-w-none', shouldShowExpandButton && 'line-clamp-3 overflow-hidden')}
-							dangerouslySetInnerHTML={{ __html: parsedContent }}
-						/>
+						<div className="mdx-content-wrapper text-white/90">
+							<MDXEditorComponent 
+								content={event.content || ''}
+								inlineEditOnly={true}
+								showToolbar={false}
+								onChange={(newContent) => {
+									if (newContent !== event.content) {
+										const updatedEvent = {
+											...event,
+											content: newContent,
+											updatedAt: new Date()
+										};
+										try {
+											updateEvent(updatedEvent);
+											toast.success('Content updated');
+										} catch (error) {
+											console.error('Failed to update content:', error);
+											toast.error('Failed to update content');
+										}
+									}
+								}}
+								className="text-xs [&_.prose]:text-white/90 [&_.prose_h1]:text-white [&_.prose_h2]:text-white [&_.prose_h3]:text-white [&_.prose_h4]:text-white [&_.prose_h5]:text-white [&_.prose_h6]:text-white [&_.prose_p]:text-white/90 [&_.prose_li]:text-white/90 [&_.prose_strong]:text-white [&_.prose_em]:text-white/80 [&_.prose_code]:text-blue-200 [&_.prose_pre]:bg-black/20 [&_.prose_blockquote]:border-white/30 [&_.prose_blockquote]:text-white/80"
+								maxHeight="200px"
+							/>
+						</div>
 					</div>
 				)}
-
+	
 				{event.location && (
 					<div className='flex items-center gap-1 text-xs text-gray-300 mt-1'>
 						<MapPin className='h-3 w-3' />
-						<span className='truncate'>{event.location}</span>
+						<span className={cn(
+							'truncate',
+							// Allow location to wrap for all-day events
+							event.isAllDay && view !== 'month' && 'whitespace-normal'
+						)}>{event.location}</span>
 					</div>
 				)}
-
+	
 				{event.hasSubtasks && (
 					<div className='mt-1'>
 						<div className='flex items-center justify-between text-xs text-gray-300'>
@@ -403,7 +456,7 @@ export default function CustomEvent({
 					</div>
 				)}
 			</div>
-
+	
 			<div className='flex items-center justify-between mt-2 text-xs'>
 				<div className='flex items-center gap-1 flex-wrap'>
 					{event.priority && event.priority !== 'medium' && (
@@ -415,14 +468,7 @@ export default function CustomEvent({
 							{event.priority}
 						</Badge>
 					)}
-
-					<Badge
-						variant='outline'
-						className='text-xs px-1 py-0 border-white/50 text-white/80 bg-white/10'
-					>
-						{(event.status || 'todo').replace('_', ' ')}
-					</Badge>
-
+	
 					{event.tags &&
 						event.tags.slice(0, 2).map((tag, index) => (
 							<Badge
@@ -439,7 +485,7 @@ export default function CustomEvent({
 						</Badge>
 					)}
 				</div>
-
+	
 				{event.assignee && event.assignee.length > 0 && (
 					<div className='flex items-center gap-1'>
 						<Users className='h-3 w-3 text-gray-300' />

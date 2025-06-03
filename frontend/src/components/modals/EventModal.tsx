@@ -26,7 +26,6 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -47,7 +46,9 @@ import { useEvents } from '@/contexts/EventContext';
 import { useUser } from '@/contexts/UserContext';
 import { useCalendars } from '@/contexts/CalendarContext';
 import { cn } from '@/lib/utils';
-import RichTextEditor from '../calendar/RichTextEditor';
+
+import { MDXEditorComponent } from '@/components/MDXEditor';
+
 import UserSelector from '../calendar/UserSelector';
 import TagInput from '../calendar/TagInput';
 import DependencySelector from '../calendar/DependencySelector';
@@ -185,6 +186,7 @@ export default function EventModal({
 			hasUpdateEvent: !!updateEvent,
 			hasDeleteEvent: !!deleteEvent,
 		});
+		console.log(event)
 	}, [addEvent, updateEvent, deleteEvent]);
 
 	useEffect(() => {
@@ -442,42 +444,6 @@ export default function EventModal({
 
 										<FormField
 											control={form.control}
-											name='description'
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel>Description</FormLabel>
-													<FormControl>
-														<Textarea
-															placeholder='Brief description of the event'
-															rows={3}
-															{...field}
-														/>
-													</FormControl>
-													<FormMessage />
-												</FormItem>
-											)}
-										/>
-
-										<FormField
-											control={form.control}
-											name='content'
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel>Rich Content</FormLabel>
-													<FormControl>
-														<RichTextEditor
-															value={field.value || ''}
-															onChange={field.onChange}
-															placeholder='Add detailed content, notes, or markdown...'
-														/>
-													</FormControl>
-													<FormMessage />
-												</FormItem>
-											)}
-										/>
-
-										<FormField
-											control={form.control}
 											name='location'
 											render={({ field }) => (
 												<FormItem>
@@ -486,6 +452,29 @@ export default function EventModal({
 														<div className='relative'>
 															<MapPin className='absolute left-3 top-3 h-4 w-4 text-muted-foreground' />
 															<Input placeholder='Event location' className='pl-10' {...field} />
+														</div>
+													</FormControl>
+													<FormMessage />
+												</FormItem>
+											)}
+										/>
+										
+										<FormField
+											control={form.control}
+											name='content'
+											render={({ field }) => (
+												<FormItem>
+													<FormLabel>Content</FormLabel>
+													<FormControl>
+														<div className='rounded-md border'>
+															<MDXEditorComponent
+																content={field.value || ''}
+																onChange={field.onChange}
+																className='min-h-[300px]'
+																showToolbar={true}
+																showFullToolbar={true}
+																autoFocus={activeTab === 'details'}
+															/>
 														</div>
 													</FormControl>
 													<FormMessage />

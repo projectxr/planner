@@ -314,6 +314,7 @@ export default function CalendarView({ className }: CalendarViewProps) {
 					onNavigate={setCurrentDate}
 					onView={setCurrentView as any}
 					selectable
+					allDayAccessor={() => false}  
 					resizable
 					onDragStart={event => handleDragStart(event as any)}
 					onSelectEvent={handleSelectEvent} // Single click to edit

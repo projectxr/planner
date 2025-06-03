@@ -1,0 +1,9 @@
+/**
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+import{useCollaborationContext as e}from"@lexical/react/LexicalCollaborationContext";import{LexicalComposerContext as t,createLexicalComposerContext as r}from"@lexical/react/LexicalComposerContext";import{useRef as o,useContext as n,useMemo as i,useEffect as l}from"react";import{jsx as s}from"react/jsx-runtime";function a(e){const t=e.transform();return null!==t?new Set([t]):new Set}function c({initialEditor:c,children:p,initialNodes:f,initialTheme:d,skipCollabChecks:m}){const u=o(!1),h=n(t);null==h&&function(e,...t){const r=new URL("https://lexical.dev/docs/error"),o=new URLSearchParams;o.append("code",e);for(const e of t)o.append("v",e);throw r.search=o.toString(),Error(`Minified Lexical error #${e}; visit ${r.toString()} for the full message or use the non-minified dev environment for full errors and additional helpful warnings.`)}(9);const[x,{getTheme:g}]=h,v=i((()=>{const e=d||g()||void 0,t=r(h,e);if(void 0!==e&&(c._config.theme=e),c._parentEditor=x,f)for(let e of f){let t=null,r=null;if("function"!=typeof e){const o=e;e=o.replace,t=o.with,r=o.withKlass||null}const o=c._nodes.get(e.getType());c._nodes.set(e.getType(),{exportDOM:o?o.exportDOM:void 0,klass:e,replace:t,replaceWithKlass:r,transforms:a(e)})}else{const e=c._nodes=new Map(x._nodes);for(const[t,r]of e)c._nodes.set(t,{exportDOM:r.exportDOM,klass:r.klass,replace:r.replace,replaceWithKlass:r.replaceWithKlass,transforms:a(r.klass)})}return c._config.namespace=x._config.namespace,c._editable=x._editable,[c,t]}),[]),{isCollabActive:_,yjsDocMap:w}=e(),b=m||u.current||w.has(c.getKey());return l((()=>{b&&(u.current=!0)}),[b]),l((()=>x.registerEditableListener((e=>{c.setEditable(e)}))),[c,x]),s(t.Provider,{value:v,children:!_||b?p:null})}export{c as LexicalNestedComposer};
