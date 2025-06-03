@@ -8,17 +8,21 @@ import {
 	Flag,
 	MoreHorizontal,
 	FileText,
-	Eye,
+	Maximize2,
+	Minimize2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
 import { CalendarEvent, PRIORITY_COLORS } from '@/lib/types';
+import './mdx-event-styles.css';
+
+// Custom thin scrollbar is defined in mdx-event-styles.css
 import { formatTime, cn } from '@/lib/utils';
 import { useEvents } from '@/contexts/EventContext';
-import { MDXEditorComponent } from '@/components/MDXEditor';
+import { MDXViewer, MDXInlineEditor } from '@/components/MDXEditor';
 import { toast } from 'sonner';
+import { EventContentPreview } from '@/components/calendar/EventContentPreview';
 
 interface CustomEventProps {
 	event: CalendarEvent;
@@ -40,7 +44,25 @@ export default function CustomEvent({
 	const { toggleEventDone, startDrag, endDrag, updatingEvents, updateEvent } = useEvents();
 	const [isHovered, setIsHovered] = useState(false);
 	const [isCurrentlyDragging, setIsCurrentlyDragging] = useState(false);
+	const [isContentExpanded, setIsContentExpanded] = useState(false);
+	const [contentError, setContentError] = useState<Error | null>(null);
 	const isEventUpdating = updatingEvents.has(event.id);
+	
+	// Function to handle content click and toggle expanded state
+	const handleContentClick = useCallback((e: React.MouseEvent) => {
+		// Only expand content in week view
+		if (view === 'week') {
+			// Capture the click and prevent it from reaching the calendar event handler
+			e.stopPropagation();
+			e.preventDefault();
+			
+			// Toggle expanded state using a function to avoid closure issues
+			setIsContentExpanded(prev => !prev);
+			
+			// Prevent any other handlers from processing this event
+			return false;
+		}
+	}, [view]);
 
 	const handleEdit = useCallback(() => {
 		if (onEdit) {
@@ -61,7 +83,7 @@ export default function CustomEvent({
 
 	const handleToggleDone = useCallback(
 		async (e: React.MouseEvent) => {
-			e.stopPropagation(); // Prevent event from bubbling to parent handlers
+			e.stopPropagation();
 			try {
 				await toggleEventDone(event.id);
 				toast(event.isDone ? 'Marked incomplete' : 'Done!');
@@ -136,10 +158,30 @@ export default function CustomEvent({
 		endDrag();
 	}, [endDrag]);
 
+	const handleContentUpdate = useCallback(async (newContent: string) => {
+		if (newContent !== event.content) {
+			const updatedEvent = {
+				...event,
+				content: newContent,
+				updatedAt: new Date()
+			};
+			try {
+				await updateEvent(updatedEvent);
+				toast.success('Content updated');
+			} catch (error) {
+				console.error('Failed to update content:', error);
+				toast.error('Failed to update content');
+			}
+		}
+	}, [event, updateEvent]);
+
+	const handleContentError = useCallback((error: Error) => {
+		console.error('MDX content error:', error);
+		setContentError(error);
+	}, []);
+
 	const calendarEventColor = event.color || 'rgb(49, 116, 173)';
 	const priorityColor = PRIORITY_COLORS[event.priority] || PRIORITY_COLORS.medium;
-
-
 	const hasRichContent = Boolean(event.content?.trim());
 
 	const LoadingOverlay = () => {
@@ -214,6 +256,7 @@ export default function CustomEvent({
 		);
 	};
 
+	// Month view
 	if (view === 'month') {
 		return (
 			<div
@@ -274,21 +317,11 @@ export default function CustomEvent({
 							{title}
 						</span>
 						{hasRichContent && (
-							<Popover>
-								<PopoverTrigger asChild>
-									<Button
-										variant="ghost"
-										size="icon"
-										className="h-5 w-5 p-0 text-white/80 hover:text-white hover:bg-white/20"
-										onMouseDown={e => e.stopPropagation()}
-									>
-										<Eye className="h-3 w-3" />
-									</Button>
-								</PopoverTrigger>
-								<PopoverContent className="max-w-md p-2 bg-gray-900 border-gray-800">
-									<MDXEditorComponent content={event.content || ''} viewOnly maxHeight="300px" className="overflow-y-auto" />
-								</PopoverContent>
-							</Popover>
+							<EventContentPreview
+								event={event}
+								onError={handleContentError}
+								buttonClassName="relative z-20"
+							/>
 						)}
 					</div>
 				</div>
@@ -302,6 +335,7 @@ export default function CustomEvent({
 		);
 	}
 
+	// Week/Day view
 	return (
 		<div
 			className={cn(
@@ -311,7 +345,6 @@ export default function CustomEvent({
 				isHovered && 'shadow-lg',
 				isCurrentlyDragging && 'opacity-50 scale-95',
 				isEventUpdating && 'ring-2 ring-blue-400 ring-opacity-50',
-				// Add special styling for all-day events in time slots
 				event.isAllDay && view !== 'month' && 'min-h-[60px] border-2 border-dashed border-white/30'
 			)}
 			style={{
@@ -367,11 +400,9 @@ export default function CustomEvent({
 								className={cn(
 									'font-medium text-sm leading-tight',
 									event.isDone && 'line-through text-gray-400',
-									// Better text wrapping for all-day events
 									event.isAllDay && view !== 'month' && 'font-semibold'
 								)}
 								style={{
-									// Allow text wrapping for all-day events
 									whiteSpace: event.isAllDay && view !== 'month' ? 'normal' : 'nowrap',
 									overflow: event.isAllDay && view !== 'month' ? 'visible' : 'hidden',
 									textOverflow: event.isAllDay && view !== 'month' ? 'initial' : 'ellipsis'
@@ -393,37 +424,116 @@ export default function CustomEvent({
 			</div>
 	
 			<div className='flex-1 mt-1'>
-				{event.description && !event.isAllDay && (
+				{event.description && (!event.isAllDay || view === 'week') && (
 					<div className='text-xs text-gray-200 mt-1 line-clamp-2'>{event.description}</div>
 				)}
 	
-				{/* Fixed MDX rendering - only show for non-all-day events */}
-				{hasRichContent && event.content && view !== 'month' && !event.isAllDay && (
-					<div className='mt-2'>
-						<div className="mdx-content-wrapper text-white/90">
-							<MDXEditorComponent 
-								content={event.content || ''}
-								inlineEditOnly={true}
-								showToolbar={false}
-								onChange={(newContent) => {
-									if (newContent !== event.content) {
-										const updatedEvent = {
-											...event,
-											content: newContent,
-											updatedAt: new Date()
-										};
-										try {
-											updateEvent(updatedEvent);
-											toast.success('Content updated');
-										} catch (error) {
-											console.error('Failed to update content:', error);
-											toast.error('Failed to update content');
-										}
-									}
-								}}
-								className="text-xs [&_.prose]:text-white/90 [&_.prose_h1]:text-white [&_.prose_h2]:text-white [&_.prose_h3]:text-white [&_.prose_h4]:text-white [&_.prose_h5]:text-white [&_.prose_h6]:text-white [&_.prose_p]:text-white/90 [&_.prose_li]:text-white/90 [&_.prose_strong]:text-white [&_.prose_em]:text-white/80 [&_.prose_code]:text-blue-200 [&_.prose_pre]:bg-black/20 [&_.prose_blockquote]:border-white/30 [&_.prose_blockquote]:text-white/80"
-								maxHeight="200px"
-							/>
+				{hasRichContent && event.content && !((view === 'week' && event.isAllDay)) && (
+					<div 
+						className={cn(
+							'mt-2 transition-all',
+							view === 'month' ? 'hidden' : 'flex flex-col',
+							// Ensure proper height constraints for week view
+							event.isAllDay && view !== 'month' ? 'h-[90px]' : 'flex-1 min-h-0'
+						)}
+					>
+						<div className={cn(
+							"mdx-content-wrapper text-white/95 rounded-sm overflow-hidden",
+							view === 'week' ? 'flex flex-col h-full' : '',
+							event.isAllDay ? 'bg-white/5' : ''
+						)}>
+							{contentError ? (
+								<div className="text-xs text-yellow-300 p-2 bg-black/20 rounded">
+									Content display error. Click edit to fix.
+								</div>
+							) : view === 'week' ? (
+								// Toggle between preview and editable content in week view
+								<div 
+									className="h-full w-full relative" 
+									onClick={handleContentClick}
+									onMouseDown={(e) => e.stopPropagation()}
+									onMouseUp={(e) => e.stopPropagation()}
+								>
+									{isContentExpanded ? (
+										<div className="flex-1 h-full max-h-[200px] overflow-auto custom-thin-scrollbar">
+											<div className="relative">
+												<MDXInlineEditor
+													content={event.content}
+													onChange={handleContentUpdate}
+													onError={handleContentError}
+													className={cn(
+														"mdx-event-content event-mdx-container",
+														"prose-sm prose-invert max-w-none",
+														"h-auto w-full"
+													)}
+													minHeight="20px"
+													maxHeight={undefined}
+													placeholder="Add notes..."
+												/>
+												<div 
+													className="absolute top-0.5 right-0.5 opacity-60 hover:opacity-100 transition-opacity"
+												>
+													<div
+														className="p-0.5 rounded-sm bg-black/30 backdrop-blur-sm cursor-pointer hover:bg-black/40 transition-colors"
+														onClick={(e) => {
+															e.stopPropagation();
+															e.preventDefault();
+															setIsContentExpanded(false);
+														}}
+														title="Collapse"
+													>
+														<Minimize2 className="h-2.5 w-2.5 text-white" />
+													</div>
+												</div>
+											</div>
+										</div>
+									) : (
+										// Preview mode: Limited to 200 characters
+										<div 
+											className="p-1 text-xs cursor-pointer hover:bg-black/20 rounded transition-colors"
+											onClick={(e) => {
+												e.stopPropagation();
+												e.preventDefault();
+												setIsContentExpanded(true);
+											}}
+										>
+											<div className="mdx-event-preview prose-sm prose-invert max-w-none">
+												{event.content && (
+													<MDXViewer
+														content={event.content.length > 200 
+															? `${event.content.substring(0, 200)}...` 
+															: event.content
+														}
+														className="prose-sm prose-invert max-w-none"
+													/>
+												)}
+											</div>
+											<div 
+												className="flex items-center justify-center mt-1 opacity-70 hover:opacity-100 transition-opacity text-[9px] text-white/90"
+											>
+												<Maximize2 className="h-2.5 w-2.5 mr-0.5" />
+												<span>Expand</span>
+											</div>
+										</div>
+									)}
+								</div>
+							) : (
+								// Non-week view (day view, etc.)
+								<div className="max-h-[200px] overflow-auto custom-thin-scrollbar">
+									<MDXInlineEditor
+										content={event.content}
+										onChange={handleContentUpdate}
+										onError={handleContentError}
+										className={cn(
+											"mdx-event-content event-mdx-container",
+											"prose-sm prose-invert max-w-none"
+										)}
+										minHeight="auto"
+										maxHeight="200px"
+										placeholder="Add notes..."
+									/>
+								</div>
+							)}
 						</div>
 					</div>
 				)}
@@ -433,7 +543,6 @@ export default function CustomEvent({
 						<MapPin className='h-3 w-3' />
 						<span className={cn(
 							'truncate',
-							// Allow location to wrap for all-day events
 							event.isAllDay && view !== 'month' && 'whitespace-normal'
 						)}>{event.location}</span>
 					</div>

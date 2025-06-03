@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-// import { format } from 'date-fns'; // No longer used directly here
 import {
 	Dialog,
 	DialogContent,
@@ -32,7 +31,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import {
 	CalendarIcon,
-	// Clock, // No longer used directly here
 	MapPin,
 	Flag,
 	Trash2,
@@ -47,12 +45,13 @@ import { useUser } from '@/contexts/UserContext';
 import { useCalendars } from '@/contexts/CalendarContext';
 import { cn } from '@/lib/utils';
 
-import { MDXEditorComponent } from '@/components/MDXEditor';
+// Import the new robust MDXEditor
+import { MDXFullEditor } from '@/components/MDXEditor';
 
 import UserSelector from '../calendar/UserSelector';
 import TagInput from '../calendar/TagInput';
 import DependencySelector from '../calendar/DependencySelector';
-import { DateTimeField } from '../DateTimeField'; // Corrected import path relative to modals directory
+import { DateTimeField } from '../DateTimeField';
 
 const eventFormSchema = z.object({
 	title: z.string().min(1, 'Title is required'),
@@ -106,6 +105,7 @@ export default function EventModal({
 	const [isLoading, setIsLoading] = useState(false);
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 	const [activeTab, setActiveTab] = useState('details');
+	const [mdxError, setMdxError] = useState<Error | null>(null);
 
 	const getDefaultCalendarUid = useCallback(() => {
 		if (mode === 'add' && activeCalendar?.uid) return activeCalendar.uid;
@@ -127,13 +127,14 @@ export default function EventModal({
 		// Reset to details tab when modal opens
 		if (isOpen) {
 			setActiveTab('details');
+			setMdxError(null);
 		}
 	}, [isOpen]);
 
 	useEffect(() => {
 		console.log('EventModal mounted/updated:', { mode, event, isOpen });
 
-		if (!isOpen) return; // Don't reset if modal is closed
+		if (!isOpen) return;
 
 		try {
 			if (mode === 'edit' && event) {
@@ -189,6 +190,7 @@ export default function EventModal({
 		console.log(event)
 	}, [addEvent, updateEvent, deleteEvent]);
 
+	// Auto-calculate estimated hours when dates change
 	useEffect(() => {
 		const start = form.watch('start');
 		const end = form.watch('end');
@@ -201,14 +203,10 @@ export default function EventModal({
 			if (diffHours !== currentEstimatedHours) {
 				form.setValue('estimatedHours', diffHours, { shouldValidate: true });
 			}
-		} else if (currentEstimatedHours !== undefined && currentEstimatedHours !== null && (!start || !end || end <= start) ){
-			// if start/end is cleared or invalid, but we had an estimate, clear it unless it's 0
-			// Or if user manually clears estimated hours
-			// form.setValue('estimatedHours', undefined, { shouldValidate: true });
 		}
-
 	}, [form.watch('start'), form.watch('end'), form]);
 
+	// Update end time when estimated hours change
 	useEffect(() => {
 		const start = form.watch('start');
 		const estimatedHours = form.watch('estimatedHours');
@@ -220,16 +218,11 @@ export default function EventModal({
 				form.setValue('end', newEnd, { shouldValidate: true });
 			}
 		} else if (start && typeof estimatedHours === 'number' && estimatedHours === 0 && currentEnd) {
-			// If estimated hours is set to 0, set end time to be same as start time
 			if (currentEnd.getTime() !== start.getTime()) {
 				form.setValue('end', new Date(start.getTime()), { shouldValidate: true });
 			}
 		} 
-		// if estimated hours is cleared (undefined / null) or negative, we don't auto-update end time
-		// The user might be in the process of clearing/correcting it.
-
 	}, [form.watch('start'), form.watch('estimatedHours'), form]);
-
 
 	const onSubmit = async (values: any) => {
 		setIsLoading(true);
@@ -272,6 +265,11 @@ export default function EventModal({
 			setShowDeleteConfirm(false);
 			form.reset();
 		}
+	};
+
+	const handleMDXError = (error: Error) => {
+		console.error('MDX Editor error:', error);
+		setMdxError(error);
 	};
 
 	const priorityOptions: { value: PriorityLevel; label: string; color: string }[] = [
@@ -465,15 +463,20 @@ export default function EventModal({
 											render={({ field }) => (
 												<FormItem>
 													<FormLabel>Content</FormLabel>
+													{mdxError && (
+														<div className="text-sm text-yellow-600 mb-2">
+															Note: The editor is in fallback mode due to an error.
+														</div>
+													)}
 													<FormControl>
-														<div className='rounded-md border'>
-															<MDXEditorComponent
+														<div className='rounded-md border dark:bg-background dark:border-gray-700'>
+															<MDXFullEditor
 																content={field.value || ''}
 																onChange={field.onChange}
-																className='min-h-[300px]'
-																showToolbar={true}
-																showFullToolbar={true}
-																autoFocus={activeTab === 'details'}
+																className='min-h-[300px] mdx-content-editable'
+																autoFocus={activeTab === 'details' && !mode}
+																onError={handleMDXError}
+																placeholder="Add detailed content for your event..."
 															/>
 														</div>
 													</FormControl>

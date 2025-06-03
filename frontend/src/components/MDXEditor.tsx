@@ -1,5 +1,5 @@
 'use client'
-import { forwardRef, useState, useEffect } from "react"
+import { forwardRef, useState, useEffect, useCallback, useMemo } from "react"
 import { 
   MDXEditor as OriginalMDXEditor, 
   MDXEditorMethods, 
@@ -28,327 +28,605 @@ import {
   InsertTable,
   DiffSourceToggleWrapper,
   frontmatterPlugin,
-  directivesPlugin
+  directivesPlugin,
+  ConditionalContents,
+  ChangeCodeMirrorLanguage,
+  ShowSandpackInfo,
+  InsertSandpack,
+  sandpackPlugin
 } from '@mdxeditor/editor'
 
 import '@mdxeditor/editor/style.css'
 import { cn } from '@/lib/utils'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { AlertCircle, RefreshCw } from 'lucide-react'
+import React from 'react'
+import './calendar/mdx-event-styles.css'
 
-interface MDXEditorComponentProps {
-  content?: string;
-  onChange?: (value: string) => void;
-  placeholder?: string;
-  className?: string;
-  readOnly?: boolean;
-  showToolbar?: boolean;
-  viewOnly?: boolean;
-  editorRef?: React.ForwardedRef<MDXEditorMethods>;
-  simpleView?: boolean;
-  maxHeight?: string;
-  inlineEditOnly?: boolean;
-  autoFocus?: boolean;
-  showFullToolbar?: boolean;
+// Hook to detect system dark mode preference
+const useSystemDarkMode = () => {
+  const [isDarkMode, setIsDarkMode] = useState(false)
+  
+  useEffect(() => {
+    // Check initial system preference
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    setIsDarkMode(mediaQuery.matches)
+    
+    // Listen for changes
+    const handleChange = (e: MediaQueryListEvent) => setIsDarkMode(e.matches)
+    mediaQuery.addEventListener('change', handleChange)
+    
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
+  
+  return isDarkMode
 }
 
-export const MDXEditorComponent = forwardRef<MDXEditorMethods, MDXEditorComponentProps>(({
+// Hook to detect document dark mode class
+const useDocumentDarkMode = () => {
+  const [isDarkMode, setIsDarkMode] = useState(false)
+  
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'))
+    }
+    
+    // Check initial state
+    checkDarkMode()
+    
+    // Create observer for class changes
+    const observer = new MutationObserver(checkDarkMode)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    })
+    
+    return () => observer.disconnect()
+  }, [])
+  
+  return isDarkMode
+}
+
+// Types
+export interface MDXEditorConfig {
+  mode: 'edit' | 'view' | 'inline-edit'
+  features?: {
+    headings?: boolean
+    lists?: boolean
+    quotes?: boolean
+    links?: boolean
+    images?: boolean
+    tables?: boolean
+    code?: boolean
+    thematicBreaks?: boolean
+    frontmatter?: boolean
+    directives?: boolean
+    sandpack?: boolean
+  }
+  toolbar?: {
+    show?: boolean
+    minimal?: boolean
+    custom?: () => React.ReactNode
+  }
+  theme?: {
+    mode?: 'light' | 'dark' | 'system'
+    customClasses?: string
+  }
+}
+
+export interface MDXEditorProps {
+  content?: string
+  onChange?: (value: string) => void
+  placeholder?: string
+  className?: string
+  readOnly?: boolean
+  config?: MDXEditorConfig
+  maxHeight?: string
+  minHeight?: string
+  autoFocus?: boolean
+  onError?: (error: Error) => void
+  errorFallback?: React.ComponentType<{ error: Error; retry: () => void }>
+}
+
+// Content processing utilities
+class ContentProcessor {
+  private static readonly CONTROL_CHARS = /[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g
+  private static readonly SMART_QUOTES = { '"': '"', "'": "'", "“": "\"", "”": "\"" }
+  
+  static sanitize(content: string): string {
+    if (!content || typeof content !== 'string') return ''
+    
+    try {
+      let processed = content
+      
+      // Remove control characters
+      processed = processed.replace(this.CONTROL_CHARS, '')
+      
+      // Normalize line endings
+      processed = processed.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+      
+      // Replace smart quotes
+      Object.entries(this.SMART_QUOTES).forEach(([from, to]) => {
+        processed = processed.replace(new RegExp(from, 'g'), to)
+      })
+      
+      // Fix unclosed code blocks
+      const codeBlockCount = (processed.match(/```/g) || []).length
+      if (codeBlockCount % 2 !== 0) {
+        processed += '\n```'
+      }
+      
+      return processed
+    } catch (error) {
+      console.error('Content sanitization failed:', error)
+      return content
+    }
+  }
+  
+  static validate(content: string): { valid: boolean; errors: string[] } {
+    const errors: string[] = []
+    
+    try {
+      // Check for basic markdown structure issues
+      const lines = content.split('\n')
+      let inCodeBlock = false
+      let codeBlockLine = 0
+      
+      lines.forEach((line, index) => {
+        if (line.startsWith('```')) {
+          if (!inCodeBlock) {
+            inCodeBlock = true
+            codeBlockLine = index + 1
+          } else {
+            inCodeBlock = false
+          }
+        }
+      })
+      
+      if (inCodeBlock) {
+        errors.push(`Unclosed code block starting at line ${codeBlockLine}`)
+      }
+      
+      // Check for invalid characters in certain contexts
+      if (content.includes('\x00')) {
+        errors.push('Content contains null characters')
+      }
+      
+      return { valid: errors.length === 0, errors }
+    } catch (error: any) {
+      return { valid: false, errors: ['Validation failed: ' + error.message] }
+    }
+  }
+}
+
+// Error boundary component
+class MDXErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback: React.ComponentType<any> },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: any) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+  
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('MDXEditor error:', error, errorInfo)
+  }
+  
+  render() {
+    if (this.state.hasError) {
+      const Fallback = this.props.fallback
+      return <Fallback error={this.state.error} retry={() => this.setState({ hasError: false, error: null })} />
+    }
+    
+    return this.props.children
+  }
+}
+
+// Default error fallback with dark mode support
+const DefaultErrorFallback: React.FC<{ error: Error; retry: () => void; content?: string; onChange?: (value: string) => void }> = ({ 
+  error, 
+  retry, 
+  content = '', 
+  onChange 
+}) => (
+  <Alert className="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950">
+    <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+    <AlertDescription className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-yellow-800 dark:text-yellow-200">
+          The rich text editor encountered an issue. You can try again or use plain text mode.
+        </span>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={retry}
+          className="ml-2"
+        >
+          <RefreshCw className="h-3 w-3 mr-1" />
+          Retry
+        </Button>
+      </div>
+      <textarea
+        value={content}
+        onChange={(e) => onChange?.(e.target.value)}
+        className="w-full min-h-[100px] p-2 font-mono text-sm border rounded resize-none 
+                   focus:outline-none focus:ring-2 focus:ring-blue-500 
+                   bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100
+                   border-gray-300 dark:border-gray-700"
+        placeholder="Enter your content here..."
+      />
+    </AlertDescription>
+  </Alert>
+)
+
+// Plugin factory
+class PluginFactory {
+  static createPlugins(config: MDXEditorConfig): any[] {
+    const features = config.features || {}
+    const plugins: any[] = []
+    
+    // Core plugins (always included)
+    if (features.headings !== false) plugins.push(headingsPlugin())
+    if (features.lists !== false) plugins.push(listsPlugin())
+    if (features.quotes !== false) plugins.push(quotePlugin())
+    if (features.thematicBreaks !== false) plugins.push(thematicBreakPlugin())
+    
+    // Markdown shortcuts
+    plugins.push(markdownShortcutPlugin())
+    
+    // Optional plugins
+    if (features.links !== false) {
+      plugins.push(linkPlugin())
+      if (config.mode === 'edit' && config.toolbar?.show) {
+        plugins.push(linkDialogPlugin())
+      }
+    }
+    
+    if (features.images !== false) {
+      plugins.push(imagePlugin())
+    }
+    
+    if (features.tables !== false) {
+      plugins.push(tablePlugin())
+    }
+    
+    if (features.code !== false) {
+      plugins.push(codeBlockPlugin({ defaultCodeBlockLanguage: '' }))
+      plugins.push(codeMirrorPlugin({ 
+        codeBlockLanguages: { 
+          '': 'Plain Text',
+          js: 'JavaScript',
+          ts: 'TypeScript',
+          jsx: 'JSX',
+          tsx: 'TSX',
+          css: 'CSS',
+          html: 'HTML',
+          json: 'JSON',
+          md: 'Markdown',
+          python: 'Python',
+          java: 'Java',
+          cpp: 'C++',
+          c: 'C',
+          bash: 'Bash',
+          yaml: 'YAML',
+          sql: 'SQL'
+        } 
+      }))
+    }
+    
+    if (features.frontmatter === true) {
+      plugins.push(frontmatterPlugin())
+    }
+    
+    if (features.directives === true) {
+      plugins.push(directivesPlugin())
+    }
+    
+    if (features.sandpack === true && config.mode === 'edit') {
+      plugins.push(sandpackPlugin())
+    }
+    
+    // Toolbar plugin
+    if (config.mode === 'edit' && config.toolbar?.show) {
+      plugins.push(diffSourcePlugin({ viewMode: 'rich-text' }))
+      plugins.push(toolbarPlugin({
+        toolbarContents: config.toolbar.custom || (() => (
+          config.toolbar?.minimal ? (
+            <div className="flex items-center gap-1">
+              <UndoRedo />
+              <BoldItalicUnderlineToggles />
+              <ListsToggle />
+            </div>
+          ) : (
+            <ConditionalContents
+              options={[
+                {
+                  when: (editor) => editor?.editorType === 'codeblock',
+                  contents: () => <ChangeCodeMirrorLanguage />
+                },
+                {
+                  when: (editor) => editor?.editorType === 'sandpack',
+                  contents: () => <ShowSandpackInfo />
+                },
+                {
+                  fallback: () => (
+                    <div className="flex items-center flex-wrap gap-1">
+                      <UndoRedo />
+                      <BoldItalicUnderlineToggles />
+                      <CodeToggle />
+                      <BlockTypeSelect />
+                      <CreateLink />
+                      <ListsToggle />
+                      <InsertImage />
+                      <InsertThematicBreak />
+                      <InsertCodeBlock />
+                      <InsertTable />
+                      {features.sandpack && <InsertSandpack />}
+                    </div>
+                  )
+                }
+              ]}
+            />
+          )
+        ))
+      }))
+    }
+    
+    return plugins
+  }
+}
+
+// Main component with enhanced dark mode support
+export const MDXEditorComponent = forwardRef<MDXEditorMethods, MDXEditorProps>(({
   content = '',
   onChange,
   placeholder = 'Enter content...',
   className,
   readOnly = false,
-  showToolbar = true, 
-  viewOnly = false,
-  simpleView = false,
+  config = { mode: 'edit' },
   maxHeight,
-  inlineEditOnly = false,
+  minHeight,
   autoFocus = false,
-  showFullToolbar = false
+  onError,
+  errorFallback = DefaultErrorFallback
 }, ref) => {
-  const preprocessMarkdown = (markdown: string): string => {
-    if (!markdown || typeof markdown !== 'string') return '';
-    
-    try {
-      let processed = markdown;
-      
-      processed = processed.replace(/```\n([^`]*(?:\d+:\d+\s*[AP]M|min:|Week \d+:|Month \d+:)[^`]*)\n```/g, (match, content) => {
-        const lines = content.split('\n').map((line: any) => {
-          return line.replace(/[{}]/g, '').trim();
-        });
-        return '```\n' + lines.join('\n') + '\n```';
-      });
-      
-      processed = processed.replace(/```([^`\n]*)\n/g, (match, lang) => {
-        const cleanLang = lang ? lang.replace(/[{}"':]/g, '').trim() : '';
-        return cleanLang ? `\`\`\`${cleanLang}\n` : '```\n';
-      });
-      
-      const codeBlockMatches = processed.match(/```/g);
-      if (codeBlockMatches && codeBlockMatches.length % 2 !== 0) {
-        processed += '\n```';
-      }
-      
-      processed = processed.replace(/"/g, '"').replace(/"/g, '"');
-      
-      processed = processed.replace(/<([^>]*[{}"'][^>]*)>/g, (match) => {
-        return `\`${match}\``;
-      });
-      
-      processed = processed.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
-      
-      processed = processed.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-      
-      return processed;
-    } catch (error) {
-      console.warn('Error preprocessing markdown:', error);
-      return markdown.replace(/[{}"'<>]/g, '');
-    }
-  };
-
-  const [markdown, setMarkdown] = useState(() => preprocessMarkdown(content));
-  const [hasError, setHasError] = useState(false);
+  const [processedContent, setProcessedContent] = useState(() => ContentProcessor.sanitize(content))
+  const [hasError, setHasError] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
   
+  // Dark mode detection
+  const systemDarkMode = useSystemDarkMode()
+  const documentDarkMode = useDocumentDarkMode()
+  
+  // Determine effective dark mode
+  const isDarkMode = useMemo(() => {
+    const themeMode = config.theme?.mode || 'system'
+    switch (themeMode) {
+      case 'dark': return true
+      case 'light': return false
+      case 'system': 
+      default: 
+        return documentDarkMode || systemDarkMode
+    }
+  }, [config.theme?.mode, documentDarkMode, systemDarkMode])
+  
+  // Update content when prop changes
   useEffect(() => {
-    const processed = preprocessMarkdown(content);
-    setMarkdown(processed);
-    setHasError(false);
-  }, [content]);
-
-  const handleChange = (value: string) => {
-    try {
-      const processed = preprocessMarkdown(value);
-      setMarkdown(processed);
-      onChange?.(processed);
-      setHasError(false);
-    } catch (error) {
-      console.warn('Error handling markdown change:', error);
-      setHasError(true);
-    }
-  };
-
-  const renderWithErrorHandling = (renderFunction: () => React.ReactNode) => {
-    if (hasError) {
-      return (
-        <div className={cn('border rounded-md p-3 bg-yellow-50 border-yellow-200', className)}>
-          <div className="text-sm text-yellow-700 mb-2 flex items-center gap-2">
-            <span>⚠️</span>
-            <span>Rich text mode encountered an error. Using plain text mode.</span>
-            <button 
-              onClick={() => setHasError(false)}
-              className="text-blue-600 underline text-xs"
-            >
-              Try again
-            </button>
-          </div>
-          <textarea
-            value={markdown}
-            onChange={(e) => {
-              setMarkdown(e.target.value);
-              onChange?.(e.target.value);
-            }}
-            placeholder={placeholder}
-            className="w-full min-h-[100px] border-0 bg-transparent resize-none focus:outline-none font-mono text-sm"
-            readOnly={readOnly}
-            autoFocus={autoFocus}
-          />
-        </div>
-      );
-    }
-
-    try {
-      return renderFunction();
-    } catch (error) {
-      console.warn('MDX rendering error:', error);
-      setHasError(true);
-      
-      return (
-        <div className={cn('border rounded-md p-3 bg-yellow-50 border-yellow-200', className)}>
-          <div className="text-sm text-yellow-700 mb-2">
-            ⚠️ Rich text rendering failed. Switching to plain text mode.
-          </div>
-          <textarea
-            value={markdown}
-            onChange={(e) => handleChange(e.target.value)}
-            placeholder={placeholder}
-            className="w-full min-h-[100px] border-0 bg-transparent resize-none focus:outline-none font-mono text-sm"
-            readOnly={readOnly}
-            autoFocus={autoFocus}
-          />
-        </div>
-      );
-    }
-  };
-
-  const basePlugins = [
-    headingsPlugin(),
-    listsPlugin(),
-    quotePlugin(),
-    thematicBreakPlugin(),
-    markdownShortcutPlugin(),
-    linkPlugin(),
-    imagePlugin(),
-    tablePlugin(),
-    codeBlockPlugin({ 
-      defaultCodeBlockLanguage: ''
-    }),
-    codeMirrorPlugin({ 
-      codeBlockLanguages: { 
-        '': 'Plain Text',
-        js: 'JavaScript', 
-        css: 'CSS', 
-        html: 'HTML', 
-        md: 'Markdown',
-        text: 'Plain Text'
-      } 
-    }),
-  ];
-
-  const SafeMDXEditor = ({ plugins, ...props }: any) => {
-    try {
-      return <OriginalMDXEditor {...props} plugins={plugins} />;
-    } catch (error) {
-      console.error('MDXEditor component error:', error);
-      throw error;
-    }
-  };
-
-  if (viewOnly) {
-    return renderWithErrorHandling(() => (
-      <div 
-        className={cn('mdx-content prose prose-sm dark:prose-invert', className)}
-        style={{ maxHeight, overflowY: maxHeight ? 'auto' : 'visible' }}
-      >
-        <SafeMDXEditor
-          ref={ref}
-          markdown={markdown}
-          readOnly={true}
-          contentEditableClassName="prose prose-sm sm:prose dark:prose-invert focus:outline-none max-w-none"
-          plugins={basePlugins}
-        />
-      </div>
-    ));
-  }
-
-  if (inlineEditOnly) {
-    const inlinePlugins = [...basePlugins];
-    
-    if (showToolbar) {
-      inlinePlugins.push(
-        toolbarPlugin({
-          toolbarContents: () => (
-            <div className="flex items-center flex-wrap gap-1">
-              <BoldItalicUnderlineToggles />
-              <ListsToggle />
-            </div>
-          )
-        })
-      );
-    }
-    
-    return renderWithErrorHandling(() => (
-      <div className={cn('mdx-editor-inline', className)}>
-        <SafeMDXEditor
-          ref={ref}
-          markdown={markdown}
-          onChange={handleChange}
-          readOnly={readOnly}
-          placeholder={placeholder}
-          contentEditableClassName="prose prose-sm sm:prose dark:prose-invert focus:outline-none min-h-[60px] max-w-none"
-          plugins={inlinePlugins}
-          autoFocus={autoFocus}
-        />
-      </div>
-    ));
-  }
+    const sanitized = ContentProcessor.sanitize(content)
+    setProcessedContent(sanitized)
+  }, [content])
   
-  if (readOnly || simpleView) {
-    return renderWithErrorHandling(() => (
-      <div className={cn('mdx-editor-simple', className)}>
-        <SafeMDXEditor
-          ref={ref}
-          markdown={markdown}
-          onChange={handleChange}
-          readOnly={readOnly}
-          placeholder={placeholder}
-          contentEditableClassName="prose prose-sm sm:prose dark:prose-invert focus:outline-none min-h-[60px] max-w-none"
-          plugins={basePlugins}
-          autoFocus={autoFocus}
-        />
-      </div>
-    ));
-  }
-
-  const toolbarPlugins = [];
+  // Validate content
+  const validation = useMemo(() => {
+    return ContentProcessor.validate(processedContent)
+  }, [processedContent])
   
-  if (showToolbar) {
+  // Handle content changes
+  const handleChange = useCallback((newContent: string) => {
     try {
-      toolbarPlugins.push(linkDialogPlugin());
+      const sanitized = ContentProcessor.sanitize(newContent)
+      setProcessedContent(sanitized)
+      onChange?.(sanitized)
+      setHasError(false)
     } catch (error) {
-      console.warn('linkDialogPlugin failed to load:', error);
+      console.error('Error handling content change:', error)
+      onError?.(error as Error)
+      setHasError(true)
+    }
+  }, [onChange, onError])
+  
+  // Create plugins based on config
+  const plugins = useMemo(() => {
+    return PluginFactory.createPlugins(config)
+  }, [config])
+  
+  // Determine editor classes with enhanced dark mode support
+  const editorClasses = useMemo(() => {
+    const baseClasses = cn(
+      'prose prose-sm max-w-none focus:outline-none',
+      // Enhanced dark mode prose styling
+      isDarkMode 
+        ? 'prose-invert prose-headings:text-gray-100 prose-p:text-gray-200 prose-strong:text-gray-100 prose-code:text-gray-100 prose-pre:bg-gray-800 prose-blockquote:text-gray-300' 
+        : 'prose-gray prose-headings:text-gray-900 prose-p:text-gray-700 prose-strong:text-gray-900 prose-code:text-gray-900',
+      config.theme?.customClasses
+    )
+    
+    const modeClasses = {
+      'view': 'cursor-default',
+      'edit': 'min-h-[150px]',
+      'inline-edit': 'min-h-[60px]'
     }
     
-    try {
-      toolbarPlugins.push(diffSourcePlugin({ viewMode: 'rich-text' }));
-    } catch (error) {
-      console.warn('diffSourcePlugin failed to load:', error);
+    return cn(baseClasses, modeClasses[config.mode] || modeClasses.edit)
+  }, [config.mode, config.theme?.customClasses, isDarkMode])
+  
+  // Detect if this editor is being used within a calendar event
+  const isInEventCard = useMemo(() => {
+    return className?.includes('event-mdx-container') || className?.includes('mdx-event-content');
+  }, [className]);
+  
+  // Container styles with dark mode support and enhanced calendar event integration
+  const containerStyle = useMemo(() => {
+    // Base styles
+    const baseStyles = {
+      maxHeight,
+      minHeight,
+      overflowY: maxHeight ? 'auto' as const : 'visible' as const,
+      // Prevent flex-basis issues in react-big-calendar events
+      flexBasis: 'auto',
+      flexShrink: 1,
+    };
+    
+    // Additional styles when used in calendar events
+    if (isInEventCard) {
+      return {
+        ...baseStyles,
+        display: 'flex',
+        flexDirection: 'column' as const,
+        height: '100%',
+        padding: '0',
+        margin: '0',
+        // Remove border when in an event to blend seamlessly
+        border: 'none',
+        // Critical: Ensure the editor doesn't expand beyond available space
+        maxHeight: '100%',
+        overflow: 'hidden',
+        // Help with react-big-calendar's height calculations
+        position: 'relative' as const,
+      };
     }
     
-    toolbarPlugins.push(
-      toolbarPlugin({
-        toolbarContents: showFullToolbar ? 
-          () => (
-            <div className="flex items-center flex-wrap gap-2 p-1">
-              <UndoRedo />
-              <BoldItalicUnderlineToggles />
-              <CodeToggle />
-              <BlockTypeSelect />
-              <CreateLink />
-              <ListsToggle />
-              <InsertImage />
-              <InsertThematicBreak />
-              <InsertCodeBlock />
-              <InsertTable />
-              <DiffSourceToggleWrapper />
-            </div>
-          ) : 
-          () => (
-            <div className="flex items-center flex-wrap gap-1">
-              <UndoRedo />
-              <BoldItalicUnderlineToggles />
-              <CodeToggle />
-              <BlockTypeSelect />
-              <CreateLink />
-              <ListsToggle />
-              <InsertImage />
-              <InsertThematicBreak />
-              <InsertCodeBlock />
-              <InsertTable />
-              <DiffSourceToggleWrapper />
-            </div>
-          )
-      })
-    );
-  }
+    return baseStyles;
+  }, [maxHeight, minHeight, isInEventCard])
+  
+  // Enhanced container classes with dark mode and calendar event integration
+  const containerClasses = useMemo(() => cn(
+    'mdx-editor-container',
+    // Apply dark mode to the editor container
+    isDarkMode && 'dark',
+    // Apply special styling when used within calendar events
+    isInEventCard && 'in-event-card',
+    // Custom background and text colors for better integration
+    isDarkMode 
+      ? 'bg-gray-900 text-gray-100 [&_.mdxeditor-root-contenteditable]:bg-gray-900 [&_.mdxeditor-root-contenteditable]:text-gray-100' 
+      : 'bg-white text-gray-900 [&_.mdxeditor-root-contenteditable]:bg-white [&_.mdxeditor-root-contenteditable]:text-gray-900',
+    // Transparent background when in event card
+    isInEventCard && 'bg-transparent [&_.mdxeditor-root-contenteditable]:bg-transparent',
+    // Toolbar styling
+    isDarkMode
+      ? '[&_.mdxeditor-toolbar]:bg-gray-800 [&_.mdxeditor-toolbar]:border-gray-700'
+      : '[&_.mdxeditor-toolbar]:bg-gray-50 [&_.mdxeditor-toolbar]:border-gray-200',
+    // Enhanced toolbar behavior in event cards
+    isInEventCard && [
+      '[&_.mdxeditor-toolbar]:p-0.5',
+      '[&_.mdxeditor-toolbar]:min-h-0',
+      '[&_.mdxeditor-toolbar]:border-none',
+      '[&_.mdxeditor-toolbar]:bg-black/20',
+      // Smart toolbar visibility for inline editing
+      config.mode === 'inline-edit' && [
+        '[&_.mdxeditor-toolbar]:absolute',
+        '[&_.mdxeditor-toolbar]:top-0',
+        '[&_.mdxeditor-toolbar]:right-0',
+        '[&_.mdxeditor-toolbar]:opacity-0',
+        '[&_.mdxeditor-toolbar]:transition-opacity',
+        '[&_.mdxeditor-toolbar]:duration-200',
+        '[&:hover_.mdxeditor-toolbar]:opacity-100',
+        '[&:focus-within_.mdxeditor-toolbar]:opacity-100',
+        '[&_.mdxeditor-toolbar]:z-10',
+        '[&_.mdxeditor-toolbar]:rounded',
+        '[&_.mdxeditor-toolbar]:shadow-lg',
+      ]
+    ].filter(Boolean),
+    // Button styling
+    isDarkMode
+      ? '[&_.mdxeditor-toolbar_button]:text-gray-300 [&_.mdxeditor-toolbar_button:hover]:text-gray-100 [&_.mdxeditor-toolbar_button:hover]:bg-gray-700'
+      : '[&_.mdxeditor-toolbar_button]:text-gray-600 [&_.mdxeditor-toolbar_button:hover]:text-gray-900 [&_.mdxeditor-toolbar_button:hover]:bg-gray-100',
+    // Smaller buttons in event card
+    isInEventCard && '[&_.mdxeditor-toolbar_button]:p-0.5 [&_.mdxeditor-toolbar_button]:text-xs',
+    // Content area adjustments for calendar events
+    isInEventCard && [
+      '[&_.mdxeditor-root-contenteditable]:min-h-0',
+      '[&_.mdxeditor-root-contenteditable]:flex-1',
+      '[&_.mdxeditor-root-contenteditable]:overflow-y-auto',
+      '[&_.mdxeditor-root-contenteditable]:scrollbar-thin',
+      // Ensure content doesn't interfere with react-big-calendar's event sizing
+      '[&_.mdxeditor-root-contenteditable]:contain-intrinsic-size-auto',
+    ],
+    className
+  ), [isDarkMode, className, isInEventCard, config.mode])
+    
+  // Handle calendar-specific event behaviors
+  const handleCalendarEventClick = useCallback((e: React.MouseEvent) => {
+    if (isInEventCard && config.mode === 'inline-edit') {
+      // Prevent event bubbling to calendar event handlers when editing
+      e.stopPropagation();
+    }
+  }, [isInEventCard, config.mode]);
 
-  const fullPlugins = [
-    ...basePlugins,
-    ...toolbarPlugins
-  ];
-
-  return renderWithErrorHandling(() => (
-    <div className={cn('mdx-editor-full', className)} style={{ maxHeight, overflowY: maxHeight ? 'auto' : 'visible' }}>
-      <SafeMDXEditor
-        ref={ref}
-        markdown={markdown}
-        onChange={handleChange}
-        placeholder={placeholder}
-        contentEditableClassName="prose prose-sm sm:prose dark:prose-invert focus:outline-none min-h-[150px] max-w-none"
-        plugins={fullPlugins}
-        autoFocus={autoFocus}
-      />
+  return (
+    <div 
+      className={containerClasses}
+      style={containerStyle}
+      data-theme={isDarkMode ? 'dark' : 'light'}
+      onClick={handleCalendarEventClick}
+      onMouseDown={handleCalendarEventClick} // Also prevent mousedown for drag operations
+    >
+      <MDXErrorBoundary fallback={errorFallback}>
+        <OriginalMDXEditor
+          key={`mdx-${retryCount}-${isDarkMode ? 'dark' : 'light'}`} 
+          ref={ref}
+          markdown={processedContent}
+          onChange={config.mode !== 'view' ? handleChange : undefined}
+          readOnly={readOnly || config.mode === 'view'}
+          placeholder={placeholder}
+          contentEditableClassName={editorClasses}
+          plugins={plugins}
+          autoFocus={autoFocus && config.mode !== 'view' && !isInEventCard} // Don't auto-focus in events
+        />
+      </MDXErrorBoundary>
     </div>
-  ));
-});
+  )
+})
 
-MDXEditorComponent.displayName = 'MDXEditorComponent';
+MDXEditorComponent.displayName = 'MDXEditorComponent'
 
-export default MDXEditorComponent;
+// Convenience exports for common configurations with dark mode support
+export const MDXViewer = forwardRef<MDXEditorMethods, Omit<MDXEditorProps, 'config'>>((props, ref) => (
+  <MDXEditorComponent {...props} ref={ref} config={{ mode: 'view', theme: { mode: 'system' } }} />
+))
+
+export const MDXInlineEditor = forwardRef<MDXEditorMethods, Omit<MDXEditorProps, 'config'>>((props, ref) => (
+  <MDXEditorComponent 
+    {...props} 
+    ref={ref} 
+    config={{ 
+      mode: 'inline-edit',
+      toolbar: { show: true, minimal: true },
+      theme: { mode: 'system' }
+    }} 
+  />
+))
+
+export const MDXFullEditor = forwardRef<MDXEditorMethods, Omit<MDXEditorProps, 'config'>>((props, ref) => (
+  <MDXEditorComponent 
+    {...props} 
+    ref={ref} 
+    config={{ 
+      mode: 'edit',
+      toolbar: { show: true, minimal: false },
+      theme: { mode: 'system' }
+    }} 
+  />
+))
+
+MDXViewer.displayName = 'MDXViewer'
+MDXInlineEditor.displayName = 'MDXInlineEditor'
+MDXFullEditor.displayName = 'MDXFullEditor'
+
+export default MDXEditorComponent

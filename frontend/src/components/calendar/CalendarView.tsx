@@ -253,18 +253,61 @@ export default function CalendarView({ className }: CalendarViewProps) {
 
 	const eventPropGetter = useCallback((event: CalendarEvent) => {
 		const calendarColor = event.color || 'rgb(49, 116, 173)';
+		
+		// Calculate minimum height based on content
+		const hasContent = Boolean(event.content?.trim());
+		const hasDescription = Boolean(event.description?.trim());
+		const contentHeight = hasContent ? 80 : hasDescription ? 40 : 30;
+		
 		return {
 			style: {
 				...getEventStyle(event),
 				backgroundColor: calendarColor,
 				borderColor: calendarColor,
+				// Ensure minimum height for content visibility in week view
+				minHeight: currentView === 'week' && !event.isAllDay ? `${contentHeight}px` : 'auto',
+				// Help with overflow handling
+				overflow: 'hidden',
+				// Ensure proper display for flex content
+				display: 'flex',
+				flexDirection: 'column' as const,
 			},
 			className: cn(
 				'transition-all duration-200 hover:shadow-lg',
-				event.isDone && 'opacity-75 rbc-event-done'
+				event.isDone && 'opacity-75 rbc-event-done',
+				// Add specific classes for content-rich events
+				hasContent && 'rbc-event-has-content',
+				event.isAllDay && 'rbc-event-all-day'
 			),
 		};
-	}, []);
+	}, [currentView]);
+	  
+	// Enhanced method to handle event container interactions with better MDX content scrolling support
+	const handleEventContainerClick = useCallback((event: CalendarEvent, e: React.SyntheticEvent<HTMLElement, Event>) => {
+		// Check if the click originated from within an MDX editor or scroll area
+		const target = e.target as HTMLElement;
+		const isEditingContent = target.closest('.mdxeditor-root-contenteditable, .mdx-content-wrapper');
+		const isScrollArea = target.closest('[data-radix-scroll-area-viewport]');
+		
+		if (isEditingContent || isScrollArea) {
+			// Don't trigger event selection when interacting with content or scroll area
+			e.stopPropagation();
+			
+			// Enable scrolling within the MDX content
+			const scrollArea = target.closest('.mdx-content-wrapper')?.querySelector('[data-radix-scroll-area-viewport]');
+			if (scrollArea && currentView === 'week') {
+				// Allow scrolling to propagate within the scroll area
+				scrollArea.addEventListener('wheel', (wheelEvent) => {
+					wheelEvent.stopPropagation();
+				}, { passive: false, once: true });
+			}
+			return;
+		}
+		
+		// Normal event selection behavior
+		handleSelectEvent(event);
+	}, [handleSelectEvent, currentView]);
+	  
 
 	if (loading && !filteredEvents.length) {
 		return (
@@ -287,6 +330,8 @@ export default function CalendarView({ className }: CalendarViewProps) {
 			</div>
 		);
 	}
+
+	 
 
 	return (
 		<div className={cn('h-full flex flex-col', className)}>
@@ -314,33 +359,50 @@ export default function CalendarView({ className }: CalendarViewProps) {
 					onNavigate={setCurrentDate}
 					onView={setCurrentView as any}
 					selectable
-					allDayAccessor={() => false}  
+					allDayAccessor={(event: CalendarEvent) => event.isAllDay || false}  
 					resizable
 					onDragStart={event => handleDragStart(event as any)}
-					onSelectEvent={handleSelectEvent} // Single click to edit
-					onDoubleClickEvent={handleSelectEvent} // Double click to edit (backup)
+					onSelectEvent={handleEventContainerClick as any} // Use the new handler
+					onDoubleClickEvent={(event: CalendarEvent) => handleSelectEvent(event)} // Keep double-click as backup
 					onSelectSlot={handleSelectSlot}
 					onEventDrop={handleEventDrop}
 					onEventResize={handleEventResize}
 					onDropFromOutside={handleDropFromOutside as any}
 					dragFromOutsideItem={getDragFromOutsideItem as any}
 					onDragOver={handleDragOver}
-					eventPropGetter={eventPropGetter}
+					eventPropGetter={eventPropGetter as any}
+					// Enhanced step and timeslot configuration for better event sizing
+					step={15} // 15-minute intervals for more granular positioning
+					timeslots={4} // 4 slots per hour
+					min={new Date(0, 0, 0, 6, 0, 0)} // Start at 6 AM
+					max={new Date(0, 0, 0, 23, 59, 59)} // End at 11:59 PM
+					// Custom day layout for better content display
+					dayLayoutAlgorithm={'no-overlap'} // Prevent overlapping events
 					components={{
 						toolbar: props => <CustomToolbar {...props} onAddEvent={openAddModal} />,
-						event: props => (
-							<CustomEvent
-								{...props}
-								event={props.event as CalendarEvent}
-								title={props.title}
-								view={currentView}
-								onEdit={() => handleSelectEvent(props.event as CalendarEvent)}
-								onContextMenu={e => handleEventContextMenu(e, props.event as CalendarEvent)}
-								onDragStart={() => handleDragStart(props.event as CalendarEvent)}
-							/>
-						),
+						event: props => {
+							const calendarEvent = props.event as CalendarEvent;
+							return (
+								<CustomEvent
+									{...props}
+									event={calendarEvent}
+									title={props.title}
+									view={currentView}
+									onEdit={() => handleSelectEvent(calendarEvent)}
+									onContextMenu={e => handleEventContextMenu(e, calendarEvent)}
+									onDragStart={() => handleDragStart(calendarEvent)}
+								/>
+							);
+						},
+						// We need to use a known component type that the Calendar accepts
+						// Let's enhance the main event component to handle both regular and week view
+						// This approach avoids TypeScript errors while keeping the functionality
 					}}
 					longPressThreshold={10}
+					// Additional props for better scrolling behavior
+					scrollToTime={new Date(0, 0, 0, 9, 0, 0)} // Default scroll to 9 AM
+					showMultiDayTimes={true}
+					// We don't need to specify eventPropGetter again as it's already set above
 				/>
 			</div>
 			{contextMenu && contextMenu.event && (
