@@ -46,7 +46,7 @@ import { useCalendars } from '@/contexts/CalendarContext';
 import { cn } from '@/lib/utils';
 
 // Import the new robust MDXEditor
-import { MDXFullEditor } from '@/components/MDXEditor';
+import { MDXFullEditor, MDXEditorContext } from '@/components/MDXEditor';
 
 import UserSelector from '../calendar/UserSelector';
 import TagInput from '../calendar/TagInput';
@@ -470,14 +470,16 @@ export default function EventModal({
 													)}
 													<FormControl>
 														<div className='rounded-md border dark:bg-background dark:border-gray-700'>
-															<MDXFullEditor
-																content={field.value || ''}
-																onChange={field.onChange}
-																className='min-h-[300px] mdx-content-editable'
-																autoFocus={activeTab === 'details' && !mode}
-																onError={handleMDXError}
-																placeholder="Add detailed content for your event..."
-															/>
+															<MDXEditorContext.Provider value={{ isEventCard: false }}>
+																<MDXFullEditor
+																	content={field.value || ''}
+																	onChange={field.onChange}
+																	className='min-h-[300px] mdx-content-editable'
+																	autoFocus={activeTab === 'details' && !mode}
+																	onError={handleMDXError}
+																	placeholder="Add detailed content for your event..."
+																/>
+															</MDXEditorContext.Provider>
 														</div>
 													</FormControl>
 													<FormMessage />

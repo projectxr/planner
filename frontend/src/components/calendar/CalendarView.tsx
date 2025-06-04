@@ -382,9 +382,6 @@ export default function CalendarView({ className }: CalendarViewProps) {
 								/>
 							);
 						},
-						// We need to use a known component type that the Calendar accepts
-						// Let's enhance the main event component to handle both regular and week view
-						// This approach avoids TypeScript errors while keeping the functionality
 					}}
 					longPressThreshold={10}
 					// Additional props for better scrolling behavior

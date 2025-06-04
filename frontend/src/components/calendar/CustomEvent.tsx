@@ -20,7 +20,7 @@ import './mdx-event-styles.css';
 // Custom thin scrollbar is defined in mdx-event-styles.css
 import { formatTime, cn } from '@/lib/utils';
 import { useEvents } from '@/contexts/EventContext';
-import { MDXViewer, MDXInlineEditor } from '@/components/MDXEditor';
+import { MDXViewer, MDXInlineEditor, MDXEditorContext } from '@/components/MDXEditor';
 import { toast } from 'sonner';
 import { EventContentPreview } from '@/components/calendar/EventContentPreview';
 
@@ -455,8 +455,11 @@ export default function CustomEvent({
 									onMouseUp={(e) => e.stopPropagation()}
 								>
 									{isContentExpanded ? (
-										<div className="flex-1 h-full max-h-[200px] overflow-auto custom-thin-scrollbar">
-											<div className="relative">
+										<div className="flex-1 h-full overflow-auto custom-thin-scrollbar">
+											<div className="flex-1 min-h-0 overflow-auto custom-thin-scrollbar"
+												style={{ 
+													maxHeight: 'clamp(100px, 30vh, 400px)' 
+												}}>
 												<MDXInlineEditor
 													content={event.content}
 													onChange={handleContentUpdate}
@@ -499,13 +502,15 @@ export default function CustomEvent({
 										>
 											<div className="mdx-event-preview prose-sm prose-invert max-w-none">
 												{event.content && (
-													<MDXViewer
-														content={event.content.length > 200 
-															? `${event.content.substring(0, 200)}...` 
-															: event.content
-														}
-														className="prose-sm prose-invert max-w-none"
-													/>
+													<MDXEditorContext.Provider value={{ isEventCard: true }}>
+														<MDXViewer
+															content={event.content.length > 200 
+																? `${event.content.substring(0, 200)}...` 
+																: event.content
+															}
+															className="prose-sm prose-invert max-w-none"
+														/>
+													</MDXEditorContext.Provider>
 												)}
 											</div>
 											<div 
@@ -520,19 +525,20 @@ export default function CustomEvent({
 							) : (
 								// Non-week view (day view, etc.)
 								<div className="max-h-[200px] overflow-auto custom-thin-scrollbar">
+								<MDXEditorContext.Provider value={{ isEventCard: true }}>
 									<MDXInlineEditor
 										content={event.content}
 										onChange={handleContentUpdate}
 										onError={handleContentError}
 										className={cn(
-											"mdx-event-content event-mdx-container",
 											"prose-sm prose-invert max-w-none"
 										)}
 										minHeight="auto"
 										maxHeight="200px"
 										placeholder="Add notes..."
 									/>
-								</div>
+								</MDXEditorContext.Provider>
+							</div>
 							)}
 						</div>
 					</div>

@@ -1,5 +1,5 @@
 'use client'
-import { forwardRef, useState, useEffect, useCallback, useMemo } from "react"
+import { forwardRef, useState, useEffect, useCallback, useMemo, createContext, useContext } from "react"
 import { 
   MDXEditor as OriginalMDXEditor, 
   MDXEditorMethods, 
@@ -26,7 +26,6 @@ import {
   InsertThematicBreak,
   InsertCodeBlock,
   InsertTable,
-  DiffSourceToggleWrapper,
   frontmatterPlugin,
   directivesPlugin,
   ConditionalContents,
@@ -43,6 +42,13 @@ import { Button } from '@/components/ui/button'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import React from 'react'
 import './calendar/mdx-event-styles.css'
+
+// Create a context to track if the editor is within an event card
+export const MDXEditorContextType = {
+  isEventCard: false,
+}
+
+export const MDXEditorContext = createContext(MDXEditorContextType)
 
 // Hook to detect system dark mode preference
 const useSystemDarkMode = () => {
@@ -422,12 +428,7 @@ export const MDXEditorComponent = forwardRef<MDXEditorMethods, MDXEditorProps>((
     setProcessedContent(sanitized)
   }, [content])
   
-  // Validate content
-  const validation = useMemo(() => {
-    return ContentProcessor.validate(processedContent)
-  }, [processedContent])
   
-  // Handle content changes
   const handleChange = useCallback((newContent: string) => {
     try {
       const sanitized = ContentProcessor.sanitize(newContent)
@@ -441,16 +442,13 @@ export const MDXEditorComponent = forwardRef<MDXEditorMethods, MDXEditorProps>((
     }
   }, [onChange, onError])
   
-  // Create plugins based on config
   const plugins = useMemo(() => {
     return PluginFactory.createPlugins(config)
   }, [config])
   
-  // Determine editor classes with enhanced dark mode support
   const editorClasses = useMemo(() => {
     const baseClasses = cn(
       'prose prose-sm max-w-none focus:outline-none',
-      // Enhanced dark mode prose styling
       isDarkMode 
         ? 'prose-invert prose-headings:text-gray-100 prose-p:text-gray-200 prose-strong:text-gray-100 prose-code:text-gray-100 prose-pre:bg-gray-800 prose-blockquote:text-gray-300' 
         : 'prose-gray prose-headings:text-gray-900 prose-p:text-gray-700 prose-strong:text-gray-900 prose-code:text-gray-900',
@@ -466,24 +464,20 @@ export const MDXEditorComponent = forwardRef<MDXEditorMethods, MDXEditorProps>((
     return cn(baseClasses, modeClasses[config.mode] || modeClasses.edit)
   }, [config.mode, config.theme?.customClasses, isDarkMode])
   
-  // Detect if this editor is being used within a calendar event
-  const isInEventCard = useMemo(() => {
-    return className?.includes('event-mdx-container') || className?.includes('mdx-event-content');
-  }, [className]);
+  // Use React context to determine if we're in an event card
+  const editorContext = useContext(MDXEditorContext);
+  const isInEventCard = editorContext.isEventCard;
   
-  // Container styles with dark mode support and enhanced calendar event integration
   const containerStyle = useMemo(() => {
-    // Base styles
     const baseStyles = {
       maxHeight,
       minHeight,
       overflowY: maxHeight ? 'auto' as const : 'visible' as const,
-      // Prevent flex-basis issues in react-big-calendar events
       flexBasis: 'auto',
       flexShrink: 1,
+      marginLeft: '0.5rem'
     };
     
-    // Additional styles when used in calendar events
     if (isInEventCard) {
       return {
         ...baseStyles,
@@ -492,12 +486,9 @@ export const MDXEditorComponent = forwardRef<MDXEditorMethods, MDXEditorProps>((
         height: '100%',
         padding: '0',
         margin: '0',
-        // Remove border when in an event to blend seamlessly
         border: 'none',
-        // Critical: Ensure the editor doesn't expand beyond available space
         maxHeight: '100%',
         overflow: 'hidden',
-        // Help with react-big-calendar's height calculations
         position: 'relative' as const,
       };
     }
@@ -505,30 +496,22 @@ export const MDXEditorComponent = forwardRef<MDXEditorMethods, MDXEditorProps>((
     return baseStyles;
   }, [maxHeight, minHeight, isInEventCard])
   
-  // Enhanced container classes with dark mode and calendar event integration
   const containerClasses = useMemo(() => cn(
     'mdx-editor-container',
-    // Apply dark mode to the editor container
     isDarkMode && 'dark',
-    // Apply special styling when used within calendar events
     isInEventCard && 'in-event-card',
-    // Custom background and text colors for better integration
     isDarkMode 
       ? 'bg-gray-900 text-gray-100 [&_.mdxeditor-root-contenteditable]:bg-gray-900 [&_.mdxeditor-root-contenteditable]:text-gray-100' 
       : 'bg-white text-gray-900 [&_.mdxeditor-root-contenteditable]:bg-white [&_.mdxeditor-root-contenteditable]:text-gray-900',
-    // Transparent background when in event card
     isInEventCard && 'bg-transparent [&_.mdxeditor-root-contenteditable]:bg-transparent',
-    // Toolbar styling
     isDarkMode
       ? '[&_.mdxeditor-toolbar]:bg-gray-800 [&_.mdxeditor-toolbar]:border-gray-700'
       : '[&_.mdxeditor-toolbar]:bg-gray-50 [&_.mdxeditor-toolbar]:border-gray-200',
-    // Enhanced toolbar behavior in event cards
     isInEventCard && [
       '[&_.mdxeditor-toolbar]:p-0.5',
       '[&_.mdxeditor-toolbar]:min-h-0',
       '[&_.mdxeditor-toolbar]:border-none',
       '[&_.mdxeditor-toolbar]:bg-black/20',
-      // Smart toolbar visibility for inline editing
       config.mode === 'inline-edit' && [
         '[&_.mdxeditor-toolbar]:absolute',
         '[&_.mdxeditor-toolbar]:top-0',
@@ -543,28 +526,22 @@ export const MDXEditorComponent = forwardRef<MDXEditorMethods, MDXEditorProps>((
         '[&_.mdxeditor-toolbar]:shadow-lg',
       ]
     ].filter(Boolean),
-    // Button styling
     isDarkMode
       ? '[&_.mdxeditor-toolbar_button]:text-gray-300 [&_.mdxeditor-toolbar_button:hover]:text-gray-100 [&_.mdxeditor-toolbar_button:hover]:bg-gray-700'
       : '[&_.mdxeditor-toolbar_button]:text-gray-600 [&_.mdxeditor-toolbar_button:hover]:text-gray-900 [&_.mdxeditor-toolbar_button:hover]:bg-gray-100',
-    // Smaller buttons in event card
     isInEventCard && '[&_.mdxeditor-toolbar_button]:p-0.5 [&_.mdxeditor-toolbar_button]:text-xs',
-    // Content area adjustments for calendar events
     isInEventCard && [
       '[&_.mdxeditor-root-contenteditable]:min-h-0',
       '[&_.mdxeditor-root-contenteditable]:flex-1',
       '[&_.mdxeditor-root-contenteditable]:overflow-y-auto',
       '[&_.mdxeditor-root-contenteditable]:scrollbar-thin',
-      // Ensure content doesn't interfere with react-big-calendar's event sizing
       '[&_.mdxeditor-root-contenteditable]:contain-intrinsic-size-auto',
     ],
     className
   ), [isDarkMode, className, isInEventCard, config.mode])
     
-  // Handle calendar-specific event behaviors
   const handleCalendarEventClick = useCallback((e: React.MouseEvent) => {
     if (isInEventCard && config.mode === 'inline-edit') {
-      // Prevent event bubbling to calendar event handlers when editing
       e.stopPropagation();
     }
   }, [isInEventCard, config.mode]);
@@ -575,7 +552,7 @@ export const MDXEditorComponent = forwardRef<MDXEditorMethods, MDXEditorProps>((
       style={containerStyle}
       data-theme={isDarkMode ? 'dark' : 'light'}
       onClick={handleCalendarEventClick}
-      onMouseDown={handleCalendarEventClick} // Also prevent mousedown for drag operations
+      onMouseDown={handleCalendarEventClick} 
     >
       <MDXErrorBoundary fallback={errorFallback}>
         <OriginalMDXEditor
@@ -587,7 +564,7 @@ export const MDXEditorComponent = forwardRef<MDXEditorMethods, MDXEditorProps>((
           placeholder={placeholder}
           contentEditableClassName={editorClasses}
           plugins={plugins}
-          autoFocus={autoFocus && config.mode !== 'view' && !isInEventCard} // Don't auto-focus in events
+          autoFocus={autoFocus && config.mode !== 'view' && !isInEventCard} 
         />
       </MDXErrorBoundary>
     </div>
