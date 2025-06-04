@@ -12,14 +12,7 @@ import { useCalendarEvents } from '@/contexts/EventContext';
 import { useCalendars } from '@/contexts/CalendarContext';
 import { getEventStyle } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Settings, Users, MoreHorizontal, Repeat, Calendar as CalendarIcon } from 'lucide-react';
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Repeat, Calendar as CalendarIcon } from 'lucide-react';
 import { Popover, PopoverContent } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
@@ -371,13 +364,8 @@ export default function CalendarView({ className }: CalendarViewProps) {
 					dragFromOutsideItem={getDragFromOutsideItem as any}
 					onDragOver={handleDragOver}
 					eventPropGetter={eventPropGetter as any}
-					// Enhanced step and timeslot configuration for better event sizing
-					step={15} // 15-minute intervals for more granular positioning
-					timeslots={4} // 4 slots per hour
-					min={new Date(0, 0, 0, 6, 0, 0)} // Start at 6 AM
-					max={new Date(0, 0, 0, 23, 59, 59)} // End at 11:59 PM
-					// Custom day layout for better content display
-					dayLayoutAlgorithm={'no-overlap'} // Prevent overlapping events
+					timeslots={2}
+					step={30}
 					components={{
 						toolbar: props => <CustomToolbar {...props} onAddEvent={openAddModal} />,
 						event: props => {

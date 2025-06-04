@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import {
 	CalendarEvent,
 	Task,
@@ -597,17 +597,29 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 		async (calendarUidToFetch?: string, silent = false) => {
 			if (!user) {
 				setEvents([]);
-				if (!silent) setLoading(false);
 				return;
 			}
 
-			if (!silent) {
-				setSyncStatus('syncing');
-				setLoading(true);
+			// Implement caching: check if we have recent data (within 30 seconds) to avoid redundant API calls
+			const now = new Date();
+			const isCacheValid = lastSyncTime && 
+				(now.getTime() - lastSyncTime.getTime() < 30000) && // 30 seconds cache
+				syncStatus === 'success';
+			
+			// Determine if cache is valid for the specific request
+			const isRequestForActiveCalendar = calendarUidToFetch && calendarUidToFetch === activeCalendar?.uid;
+			const isRequestForAllCalendars = !calendarUidToFetch && isAllCalendarsView();
+			
+			// Skip API call if cache is valid and request matches current view
+			if (isCacheValid && (isRequestForActiveCalendar || isRequestForAllCalendars) && !silent) {
+				console.log('Using cached events data');
+				return;
 			}
+
+			if (!silent) setSyncStatus('syncing');
 			setError(null);
 
-			// Capture the view state at the time of fetch initiation for later comparison
+			// Capture the view state at the time of fetch initiation
 			const fetchInitiatedForCalendarUid = calendarUidToFetch;
 			const fetchInitiatedInAllCalendarsView = !calendarUidToFetch && isAllCalendarsView();
 
@@ -635,22 +647,16 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 						color: calendarColor,
 					}));
 				} else {
-					// Fetch all visible calendars (for "All Calendars" view)
+					// Fetch all visible calendars
 					const visibleCalendarUids = Array.from(visibleCalendars);
 					console.log('Fetching events for all calendars:', visibleCalendarUids);
 
 					if (visibleCalendarUids.length === 0) {
-						console.log('No visible calendars found');
-						setEvents(prevEvents => {
-							const currentlyInAllCalendarsView = isAllCalendarsView();
-							if (fetchInitiatedInAllCalendarsView && currentlyInAllCalendarsView) {
-								return [];
-							}
-							return prevEvents;
-						});
-						setSyncStatus('success');
-						setLastSyncTime(new Date());
-						if (!silent) setLoading(false);
+						console.log('No visible calendars found for events');
+						if (!silent) {
+							setSyncStatus('success');
+							setLastSyncTime(new Date());
+						}
 						return;
 					}
 
@@ -684,35 +690,44 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 
 				console.log(`Total events loaded: ${allEvents.length}`);
 
-				// Conditional state update for setEvents
+				// Use functional state update with equality check to prevent unnecessary renders
 				setEvents(prevEvents => {
 					const currentActiveCalUid = activeCalendar?.uid; // Get fresh activeCalendar UID
 					const currentlyInAllView = isAllCalendarsView(); // Get fresh view state
 
+					// First check if the fetch is still relevant
+					let shouldUpdate = false;
 					if (fetchInitiatedForCalendarUid) {
 						// Fetch was for a specific calendar
-						// Update if the fetch was for the currently active calendar AND we are not in the "all calendars" view
-						if (currentActiveCalUid === fetchInitiatedForCalendarUid && !currentlyInAllView) {
-							return allEvents;
-						}
+						shouldUpdate = currentActiveCalUid === fetchInitiatedForCalendarUid && !currentlyInAllView;
 					} else if (fetchInitiatedInAllCalendarsView) {
 						// Fetch was for "all calendars"
-						// Update if the fetch was for "all calendars" AND we are currently in the "all calendars" view
-						if (currentlyInAllView) {
-							return allEvents;
-						}
+						shouldUpdate = currentlyInAllView;
 					}
-					// If conditions are not met, this fetch is stale, return previous events
-					console.log(
-						`setEvents: Stale fetch detected. Requested: ${
-							fetchInitiatedForCalendarUid || 'all'
-						}, Current active: ${currentActiveCalUid}, Current view all: ${currentlyInAllView}. Keeping prevEvents.`
-					);
-					return prevEvents;
+
+					if (!shouldUpdate) {
+						// If conditions are not met, this fetch is stale, return previous events
+						console.log(
+							`setEvents: Stale fetch detected. Requested: ${
+								fetchInitiatedForCalendarUid || 'all'
+							}, Current active: ${currentActiveCalUid}, Current view all: ${currentlyInAllView}. Keeping prevEvents.`
+						);
+						return prevEvents;
+					}
+
+					// Check if data is actually different to avoid unnecessary state updates
+					if (JSON.stringify(prevEvents) === JSON.stringify(allEvents)) {
+						console.log('Events data unchanged, skipping update');
+						return prevEvents;
+					}
+
+					return allEvents;
 				});
 
-				setSyncStatus('success');
-				setLastSyncTime(new Date());
+				if (!silent) {
+					setSyncStatus('success');
+					setLastSyncTime(new Date());
+				}
 			} catch (err: any) {
 				console.error('Failed to fetch events:', err);
 				setError(err.response?.data?.errors?.msg || 'Failed to fetch events');
@@ -725,8 +740,6 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 					});
 				}
 			}
-
-			if (!silent) setLoading(false);
 		},
 		[
 			user,
@@ -736,7 +749,10 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 			toast,
 			activeCalendar,
 			isAllCalendarsView,
-		] // Ensure activeCalendar and isAllCalendarsView are dependencies
+			lastSyncTime, // Added as dependency for caching logic
+			syncStatus // Added as dependency for caching logic
+			// Removed events.length to prevent fetch loops
+		]
 	);
 
 	// Fetch tasks for specific calendar or all calendars
@@ -747,6 +763,22 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 				return;
 			}
 
+			// Implement caching: check if we have recent data (within 30 seconds) to avoid redundant API calls
+			const now = new Date();
+			const isCacheValid = lastSyncTime && 
+				(now.getTime() - lastSyncTime.getTime() < 30000) && // 30 seconds cache
+				syncStatus === 'success';
+			
+			// Determine if cache is valid for the specific request
+			const isRequestForActiveCalendar = calendarUidToFetch && calendarUidToFetch === activeCalendar?.uid;
+			const isRequestForAllCalendars = !calendarUidToFetch && isAllCalendarsView();
+			
+			// Skip API call if cache is valid and request matches current view
+			if (isCacheValid && (isRequestForActiveCalendar || isRequestForAllCalendars) && !silent) {
+				console.log('Using cached tasks data');
+				return;
+			}
+			
 			if (!silent) setSyncStatus('syncing');
 			setError(null);
 
@@ -827,31 +859,39 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 				}
 
 				console.log(`Total tasks loaded: ${allTasks.length}`);
-				// Conditional state update for setTasks
+				
+				// Conditional state update for setTasks with JSON equality check
 				setTasks(prevTasks => {
 					const currentActiveCalUid = activeCalendar?.uid;
 					const currentlyInAllView = isAllCalendarsView();
 
+					// First check if the fetch is still relevant
+					let shouldUpdate = false;
 					if (fetchInitiatedForCalendarUid) {
 						// Fetch was for a specific calendar
-						// Update if the fetch was for the currently active calendar AND we are not in the "all calendars" view
-						if (currentActiveCalUid === fetchInitiatedForCalendarUid && !currentlyInAllView) {
-							return allTasks;
-						}
+						shouldUpdate = currentActiveCalUid === fetchInitiatedForCalendarUid && !currentlyInAllView;
 					} else if (fetchInitiatedInAllCalendarsView) {
 						// Fetch was for "all calendars"
-						// Update if the fetch was for "all calendars" AND we are currently in the "all calendars" view
-						if (currentlyInAllView) {
-							return allTasks;
-						}
+						shouldUpdate = currentlyInAllView;
 					}
-					// If conditions are not met, this fetch is stale, return previous tasks
-					console.log(
-						`setTasks: Stale fetch detected. Requested: ${
-							fetchInitiatedForCalendarUid || 'all'
-						}, Current active: ${currentActiveCalUid}, Current view all: ${currentlyInAllView}. Keeping prevTasks.`
-					);
-					return prevTasks;
+
+					if (!shouldUpdate) {
+						// If conditions are not met, this fetch is stale, return previous tasks
+						console.log(
+							`setTasks: Stale fetch detected. Requested: ${
+								fetchInitiatedForCalendarUid || 'all'
+							}, Current active: ${currentActiveCalUid}, Current view all: ${currentlyInAllView}. Keeping prevTasks.`
+						);
+						return prevTasks;
+					}
+					
+					// Check if data is actually different to avoid unnecessary state updates
+					if (JSON.stringify(prevTasks) === JSON.stringify(allTasks)) {
+						console.log('Tasks data unchanged, skipping update');
+						return prevTasks;
+					}
+					
+					return allTasks;
 				});
 
 				if (!silent) {
@@ -861,54 +901,201 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 			} catch (err: any) {
 				console.error('Failed to fetch tasks:', err);
 				setError(err.response?.data?.errors?.msg || 'Failed to fetch tasks');
-				if (!silent) setSyncStatus('error');
+				if (!silent) {
+					setSyncStatus('error');
+					toast({
+						title: 'Error',
+						description: 'Failed to fetch tasks',
+						variant: 'destructive',
+					});
+				}
 			}
+			
+			if (!silent) setLoading(false);
 		},
 		[
 			user,
 			getCurrentCalendarInfo,
 			visibleCalendars,
 			calendarColors,
+			toast,
 			activeCalendar,
 			isAllCalendarsView,
-		] // Ensure activeCalendar and isAllCalendarsView are dependencies
+			lastSyncTime, // Added as dependency for caching logic
+			syncStatus // Added as dependency for caching logic
+			// Removed tasks.length to prevent fetch loops
+		]
 	);
+
+	// Fetch agenda data
+	const fetchAgenda = useCallback(async (silent = false) => {
+		if (!user) {
+			setAgendaData(null);
+			return;
+		}
+		
+		// Implement caching: check if we have recent data (within 30 seconds) to avoid redundant API calls
+		const now = new Date();
+		const isCacheValid = lastSyncTime && 
+			(now.getTime() - lastSyncTime.getTime() < 30000) && // 30 seconds cache
+			syncStatus === 'success';
+		
+		// Skip API call if cache is valid and we're in agenda view
+		if (isCacheValid && currentView === 'agenda' && !silent) {
+			console.log('Using cached agenda data');
+			return;
+		}
+		
+		if (!silent) setSyncStatus('syncing');
+		setError(null);
+
+		try {
+			const response = await apiClient.get('/api/events/agenda');
+			
+			// Use functional update with equality check to prevent unnecessary renders
+			setAgendaData(prevData => {
+				// Check if data is actually different
+				if (JSON.stringify(prevData) === JSON.stringify(response.data)) {
+					console.log('Agenda data unchanged, skipping update');
+					return prevData;
+				}
+				return response.data;
+			});
+			
+			if (!silent) {
+				setSyncStatus('success');
+				setLastSyncTime(new Date());
+			}
+		} catch (err: any) {
+			console.error('Failed to fetch agenda:', err);
+			setError(err.response?.data?.errors?.msg || 'Failed to fetch agenda');
+			if (!silent) {
+				setSyncStatus('error');
+				toast({
+					title: 'Error',
+					description: 'Failed to fetch agenda',
+					variant: 'destructive',
+				});
+			}
+		}
+	}, [user?.id, currentView, lastSyncTime, syncStatus, toast]); // Depend on user.id instead of user object
 
 	// Refresh all calendars
 	const refreshAll = useCallback(
 		async (force = false) => {
+			// Prevent multiple simultaneous refreshes
 			if (syncStatus === 'syncing' && !force) return;
 
+			// Set sync status before fetching and use setLoading for UI feedback
 			setSyncStatus('syncing');
-			await Promise.all([fetchEvents(undefined, false), fetchTasks(undefined, false)]);
+			setLoading(true);
+			setError(null);
+			
+			// Track if operation is canceled or replaced
+			let isCanceled = false;
+			
+			// Always pass silent=false to show UI feedback when manually refreshing
+			try {
+				// Use Promise.all to run fetches in parallel
+				const fetchPromises = [
+					fetchEvents(undefined, false)
+						.catch(err => {
+							console.error('Error fetching events during refreshAll:', err);
+							return null;
+						}),
+					fetchTasks(undefined, false)
+						.catch(err => {
+							console.error('Error fetching tasks during refreshAll:', err);
+							return null;
+						})
+				];
 
-			if (currentView === 'agenda') {
-				await fetchAgenda();
+				// Add agenda fetch if needed
+				if (currentView === 'agenda') {
+					fetchPromises.push(
+						fetchAgenda(false)
+							.catch(err => {
+								console.error('Error fetching agenda during refreshAll:', err);
+								return null;
+							})
+					);
+				}
+				
+				// Wait for all fetch operations to complete
+				await Promise.all(fetchPromises);
+				
+				if (!isCanceled) {
+					// Update sync status and time manually to ensure they're consistent
+					setSyncStatus('success');
+					setLastSyncTime(new Date());
+				}
+			} catch (err: any) {
+				if (!isCanceled) {
+					console.error('Error refreshing all calendars:', err);
+					setSyncStatus('error');
+					setError(err.response?.data?.errors?.msg || 'Failed to refresh calendars');
+					toast({
+						title: 'Error',
+						description: 'Failed to refresh calendars',
+						variant: 'destructive',
+					});
+				}
+			} finally {
+				if (!isCanceled) {
+					setLoading(false);
+				}
 			}
+			
+			return () => {
+				isCanceled = true;
+			};
 		},
-		[syncStatus, fetchEvents, fetchTasks, currentView]
+		[syncStatus, fetchEvents, fetchTasks, currentView, fetchAgenda, toast]
 	);
 
 	// Refresh specific calendar
 	const refreshCalendar = useCallback(
 		async (calendarUid: string) => {
-			await Promise.all([fetchEvents(calendarUid, true), fetchTasks(calendarUid, true)]);
+			if (!calendarUid) return;
+			
+			// Track if operation is canceled or replaced
+			let isCanceled = false;
+			
+			try {
+				// Use silent=true since we're only refreshing a specific calendar
+				// and don't want to change global loading/sync states
+				const fetchPromises = [
+					fetchEvents(calendarUid, true)
+						.catch(err => {
+							console.error(`Error fetching events for calendar ${calendarUid}:`, err);
+							return null;
+						}),
+					fetchTasks(calendarUid, true)
+						.catch(err => {
+							console.error(`Error fetching tasks for calendar ${calendarUid}:`, err);
+							return null;
+						})
+				];
+				
+				// Wait for all fetch operations to complete
+				await Promise.all(fetchPromises);
+				
+				// Only update the lastSyncTime for this specific calendar if not canceled
+				if (!isCanceled) {
+					setLastSyncTime(new Date());
+				}
+			} catch (err) {
+				if (!isCanceled) {
+					console.error(`Error refreshing calendar ${calendarUid}:`, err);
+				}
+			}
+			
+			return () => {
+				isCanceled = true;
+			};
 		},
 		[fetchEvents, fetchTasks]
 	);
-
-	// Fetch agenda data
-	const fetchAgenda = useCallback(async () => {
-		if (!user) return;
-
-		try {
-			const response = await apiClient.get('/api/events/agenda');
-			setAgendaData(response.data);
-		} catch (err: any) {
-			console.error('Failed to fetch agenda:', err);
-			setError(err.response?.data?.errors?.msg || 'Failed to fetch agenda');
-		}
-	}, [user]);
 
 	const addEvent = useCallback(
 		async (eventData: EventFormData, calendarUid?: string) => {
@@ -1364,7 +1551,7 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 		setFilters({});
 	}, []);
 
-	const value = {
+	const value = useMemo(() => ({
 		// Data
 		events,
 		tasks,
@@ -1388,13 +1575,13 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 		isEditModalOpen,
 		isCalendarModalOpen,
 		isUserModalOpen,
-		isFilterModalOpen, // Added
+		isFilterModalOpen,
 		contextMenu,
 		slotSelectionStartDate,
 		slotSelectionEndDate,
 
 		// Drag and drop
-		dragDropData, // Restored
+		dragDropData,
 
 		// Filters and loading
 		filters,
@@ -1428,9 +1615,9 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 		selectEvent,
 		openAddModal,
 		openEditModal,
-		openFilterModal, // Added
-		openCalendarModal: openCalendarModalCtx, // Renamed to avoid conflict, provide as openCalendarModal
-		openUserModal: openUserModalCtx, // Renamed to avoid conflict, provide as openUserModal
+		openFilterModal,
+		openCalendarModal: openCalendarModalCtx,
+		openUserModal: openUserModalCtx,
 		closeAllModals,
 
 		// Context menu
@@ -1438,7 +1625,7 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 
 		// Drag and drop
 		setDraggedItem,
-		handleDrop, // Restored
+		handleDrop,
 
 		// Filters
 		setFilters,
@@ -1454,9 +1641,82 @@ export function CalendarEventProvider({ children }: { children: ReactNode }) {
 		handleSidebarDrop,
 		updateEventOptimistic,
 		updatingEvents,
-	};
+	}), [
+		// Data dependencies
+		events,
+		tasks,
+		filteredEvents,
+		filteredTasks,
+		agendaData,
+		visibleCalendars,
+		calendarColors,
+		syncStatus,
+		lastSyncTime,
+		currentView,
+		currentDate,
+		selectedEvent,
+		
+		// UI state dependencies
+		isAddModalOpen,
+		isEditModalOpen,
+		isCalendarModalOpen,
+		isUserModalOpen,
+		isFilterModalOpen,
+		contextMenu,
+		slotSelectionStartDate,
+		slotSelectionEndDate,
+		dragDropData,
+		
+		// Filter and loading dependencies
+		filters,
+		loading,
+		error,
+		hasActiveFilters,
+		activeFilterCount,
+		
+		// Function dependencies
+		toggleCalendarVisibility,
+		setCalendarColor,
+		refreshAll,
+		refreshCalendar,
+		fetchEvents,
+		fetchTasks,
+		fetchAgenda,
+		addEvent,
+		updateEvent,
+		deleteEvent,
+		toggleEventDone,
+		repeatEvent,
+		bulkUpdateEvents,
+		setCurrentView,
+		setCurrentDate,
+		navigateToToday,
+		selectEvent,
+		openAddModal,
+		openEditModal,
+		openFilterModal,
+		openCalendarModalCtx,
+		openUserModalCtx,
+		closeAllModals,
+		setContextMenu,
+		setDraggedItem,
+		handleDrop,
+		setFilters,
+		clearFilters,
+		scheduleTask,
+		unscheduleEvent,
+		isDragging,
+		draggedItem,
+		dragType,
+		startDrag,
+		endDrag,
+		handleCalendarDrop,
+		handleSidebarDrop,
+		updateEventOptimistic,
+		updatingEvents,
+	]);
 
-	return <CalendarEventContext.Provider value={value}>{children}</CalendarEventContext.Provider>;
+	return <CalendarEventContext.Provider value={value as any}>{children}</CalendarEventContext.Provider>;
 }
 
 export function useCalendarEvents() {

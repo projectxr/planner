@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useCallback, useEffect, useMemo } from 'react';
 import { CalendarData, CalendarSettings } from '@/lib/types';
 import apiClient from '@/services/api';
 import { useUser } from './UserContext';
@@ -30,6 +30,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 		user,
 		refreshUser,
 		updateCalendarDetails: updateCalendarDetailsInUserContext,
+		updateCalendarSnapshot,
 	} = useUser();
 	const [calendars, setCalendars] = useState<CalendarData[]>([]);
 	const [_activeCalendar, _setActiveCalendar] = useState<CalendarData | null>(null);
@@ -52,6 +53,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 		setLoading(true);
 		setError(null);
 		try {
+			// Construct calendars from user data without unnecessary API calls
 			const userCalendars = user.myCalendars.map((calEntry: any) => {
 				const backendCalendar = calEntry.calendar;
 				return {
@@ -80,35 +82,51 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 					updatedAt: backendCalendar.updatedAt,
 				};
 			}) as CalendarData[];
-			setCalendars(userCalendars);
+
+			// Only update state if calendars have actually changed
+			setCalendars(prevCalendars => {
+				if (JSON.stringify(prevCalendars) !== JSON.stringify(userCalendars)) {
+					return userCalendars;
+				}
+				return prevCalendars;
+			});
 
 			if (userCalendars.length > 0) {
 				const currentActiveId = localStorage.getItem('activeCalendarId');
 				const foundActive = userCalendars.find(c => c.uid === currentActiveId);
-				if (foundActive) {
-					_setActiveCalendar(foundActive); // Use renamed state setter
-				} else if (userCalendars.length > 0) {
-					_setActiveCalendar(userCalendars[0]); // Use renamed state setter
-					localStorage.setItem('activeCalendarId', userCalendars[0].uid);
-				} else {
-					_setActiveCalendar(null); // Use renamed state setter
-					localStorage.removeItem('activeCalendarId');
-				}
-			} else {
-				_setActiveCalendar(null); // Use renamed state setter
+
+				_setActiveCalendar(prevActiveCalendar => {
+					// Only update active calendar if it's actually different
+					if (foundActive) {
+						if (!prevActiveCalendar || prevActiveCalendar.uid !== foundActive.uid) {
+							return foundActive;
+						}
+					} else if (userCalendars.length > 0) {
+						if (!prevActiveCalendar || prevActiveCalendar.uid !== userCalendars[0].uid) {
+							localStorage.setItem('activeCalendarId', userCalendars[0].uid);
+							return userCalendars[0];
+						}
+					} else if (prevActiveCalendar !== null) {
+						localStorage.removeItem('activeCalendarId');
+						return null;
+					}
+					return prevActiveCalendar;
+				});
+			} else if (_activeCalendar !== null) {
+				_setActiveCalendar(null); // Only set to null if it wasn't already null
 				localStorage.removeItem('activeCalendarId');
 			}
 		} catch (err: any) {
 			console.error('Failed to fetch calendars:', err);
 			setError(err.message || 'Failed to load calendars');
 			setCalendars([]);
-			_setActiveCalendar(null); // Use renamed state setter
+			_setActiveCalendar(null);
 		} finally {
 			setLoading(false);
-			// 🔥 IMPORTANT: Mark that we've completed the initial fetch
+			// Mark that we've completed the initial fetch
 			setHasCompletedInitialFetch(true);
 		}
-	}, [user]);
+	}, [user, _activeCalendar]);
 
 	const createCalendar = useCallback(
 		async (payload: CreateCalendarPayload): Promise<CalendarData | null> => {
@@ -168,10 +186,56 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 				payloadForUserContext.calendarName = name;
 			}
 
-			// UserContext.updateCalendarDetails handles API call & then calls refreshUser.
-			// The change in `user` prop from UserContext will trigger `fetchCalendars` here.
+			// First, apply the change optimistically to both contexts
+			if (updateCalendarSnapshot) {
+				// Update UserContext's local snapshot first
+				updateCalendarSnapshot(calendarId, payloadForUserContext);
+				
+				// Also update our local calendars state optimistically
+				setCalendars(prevCalendars => {
+					return prevCalendars.map(calendar => {
+						if (calendar.uid === calendarId) {
+							return {
+								...calendar,
+								...(name && { name }), // Update name if provided
+								...(payloadForUserContext.calendarName && { name: payloadForUserContext.calendarName }),
+								...(payloadForUserContext.description && { description: payloadForUserContext.description }),
+								...(payloadForUserContext.color && { color: payloadForUserContext.color }),
+								...(payloadForUserContext.isPrivate !== undefined && { isPrivate: payloadForUserContext.isPrivate }),
+								...(payloadForUserContext.settings && { settings: {
+									...calendar.settings,
+									...payloadForUserContext.settings
+								}}),
+							};
+						}
+						return calendar;
+					});
+				});
+				
+				// Also update active calendar if it's the one being updated
+				if (_activeCalendar && _activeCalendar.uid === calendarId) {
+					_setActiveCalendar(prevActiveCalendar => {
+						if (!prevActiveCalendar) return prevActiveCalendar;
+						
+						return {
+							...prevActiveCalendar,
+							...(name && { name }), // Update name if provided
+							...(payloadForUserContext.calendarName && { name: payloadForUserContext.calendarName }),
+							...(payloadForUserContext.description && { description: payloadForUserContext.description }),
+							...(payloadForUserContext.color && { color: payloadForUserContext.color }),
+							...(payloadForUserContext.isPrivate !== undefined && { isPrivate: payloadForUserContext.isPrivate }),
+							...(payloadForUserContext.settings && { settings: {
+								...prevActiveCalendar.settings,
+								...payloadForUserContext.settings
+							}}),
+						};
+					});
+				}
+			}
+
+			// Then perform the actual API update with skipRefresh=true since we already updated locally
 			if (updateCalendarDetailsInUserContext) {
-				await updateCalendarDetailsInUserContext(calendarId, payloadForUserContext);
+				await updateCalendarDetailsInUserContext(calendarId, payloadForUserContext, true);
 			} else {
 				throw new Error(
 					'updateCalendarDetailsInUserContext function is not available from UserContext'
@@ -180,9 +244,10 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 		} catch (err: any) {
 			console.error('Failed to update calendar via UserContext:', err);
 			setError(err.message || 'Failed to update calendar');
-			// If UserContext.updateCalendarDetails itself throws and doesn't call refreshUser,
-			// the local state here won't be updated from a stale `user` object.
-			// Consider re-fetching user if error is specific to update but not auth.
+			// If there's an error, we should refresh to get the correct state
+			if (refreshUser) {
+				refreshUser().catch(e => console.error('Failed to refresh user after calendar update error:', e));
+			}
 		} finally {
 			setLoading(false);
 		}
@@ -270,7 +335,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 		[calendars]
 	);
 
-	const value = {
+	const value = useMemo(() => ({
 		calendars,
 		activeCalendar: _activeCalendar, // Use renamed state variable
 		loading,
@@ -280,7 +345,17 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 		createCalendar,
 		updateCalendar,
 		deleteCalendar,
-	};
+	}), [
+		calendars,
+		_activeCalendar,
+		loading,
+		error,
+		fetchCalendars,
+		selectActiveCalendar,
+		createCalendar,
+		updateCalendar,
+		deleteCalendar,
+	]);
 
 	return <CalendarContext.Provider value={value}>{children}</CalendarContext.Provider>;
 }

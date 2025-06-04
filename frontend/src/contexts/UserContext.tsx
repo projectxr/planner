@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useCallback, useEffect, useMemo } from 'react';
 import apiClient from '@/services/api';
 import { User, CalendarData } from '@/lib/types';
 
@@ -21,9 +21,16 @@ interface UserContextType {
 		calendarUid: string,
 		updates: Partial<
 			Pick<CalendarData, 'calendarName' | 'description' | 'color' | 'isPrivate' | 'settings'>
-		>
+		>,
+		skipRefresh?: boolean
 	) => Promise<void>;
-	updateUserName: (name: string) => Promise<void>; // Added updateUserName
+	updateCalendarSnapshot: (
+		calendarUid: string,
+		updates: Partial<
+			Pick<CalendarData, 'calendarName' | 'description' | 'color' | 'isPrivate' | 'settings'>
+		>
+	) => void;
+	updateUserName: (name: string) => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -33,6 +40,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 	const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
 	const [loading, setLoading] = useState<boolean>(false);
 	const [error, setError] = useState<string | null>(null);
+	const [needsRefresh, setNeedsRefresh] = useState<boolean>(false);
 
 	const fetchUserDetails = useCallback(async (currentToken: string) => {
 		if (!currentToken) {
@@ -45,8 +53,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
 		apiClient.defaults.headers.common['X-AUTH-TOKEN'] = currentToken;
 		try {
 			const { data } = await apiClient.get('/api/auth/');
-			setUser(data);
+			setUser(prev => {
+				// Only update if data is different to prevent unnecessary re-renders
+				if (JSON.stringify(prev) !== JSON.stringify(data)) {
+					return data;
+				}
+				return prev;
+			});
 			setError(null);
+			setNeedsRefresh(false);
 		} catch (err) {
 			console.error('Failed to verify token or fetch user:', err);
 			localStorage.removeItem('token');
@@ -64,6 +79,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
 			fetchUserDetails(token);
 		}
 	}, [token, fetchUserDetails]);
+	
+	useEffect(() => {
+		if (needsRefresh && token) {
+			fetchUserDetails(token);
+		}
+	}, [needsRefresh, token, fetchUserDetails]);
 
 	const refreshUser = useCallback(async () => {
 		const currentToken = localStorage.getItem('token');
@@ -75,6 +96,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
 			delete apiClient.defaults.headers.common['X-AUTH-TOKEN'];
 		}
 	}, [fetchUserDetails]);
+	
+	// Mark for refresh without immediate API call
+	const markForRefresh = useCallback(() => {
+		setNeedsRefresh(true);
+	}, []);
 
 	const loginUser = useCallback(async (credentials: AuthCredentials) => {
 		setLoading(true);
@@ -131,14 +157,61 @@ export function UserProvider({ children }: { children: ReactNode }) {
 		setUser(null);
 	}, []);
 
-	const updateCalendarDetails = useCallback(
-		async (
+	// Update calendar snapshot in local state before API call
+	const updateCalendarSnapshot = useCallback(
+		(
 			calendarUid: string,
 			updates: Partial<
 				Pick<CalendarData, 'calendarName' | 'description' | 'color' | 'isPrivate' | 'settings'>
 			>
 		) => {
+			if (!user) return;
+			
+			setUser(prevUser => {
+				if (!prevUser) return prevUser;
+				
+				// Create deep copy of user
+				const updatedUser = {...prevUser};
+				
+				// Find and update the calendar
+				if (updatedUser.myCalendars) {
+					updatedUser.myCalendars = updatedUser.myCalendars.map(calEntry => {
+						if (calEntry.calendar.uid === calendarUid) {
+							return {
+								...calEntry,
+								calendar: {
+									...calEntry.calendar,
+									...(updates.calendarName && { calendarName: updates.calendarName }),
+									...(updates.description && { description: updates.description }),
+									...(updates.color && { color: updates.color }),
+									...(updates.isPrivate !== undefined && { isPrivate: updates.isPrivate }),
+									...(updates.settings && { settings: {...calEntry.calendar.settings, ...updates.settings} }),
+								}
+							};
+						}
+						return calEntry;
+					});
+				}
+				
+				return updatedUser;
+			});
+		},
+		[user]
+	);
+
+	const updateCalendarDetails = useCallback(
+		async (
+			calendarUid: string,
+			updates: Partial<
+				Pick<CalendarData, 'calendarName' | 'description' | 'color' | 'isPrivate' | 'settings'>
+			>,
+			skipRefresh = false
+		) => {
 			if (!user) throw new Error('User not available for updating calendar details.');
+			
+			// Optimistically update local state first
+			updateCalendarSnapshot(calendarUid, updates);
+			
 			setLoading(true);
 			setError(null);
 			try {
@@ -151,7 +224,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
 				}
 
 				await apiClient.post('/api/calendar/update', payload);
-				await refreshUser();
+				
+				// Only refresh if not skipped
+				if (!skipRefresh) {
+					await refreshUser();
+				} else {
+					markForRefresh();
+				}
+				
 				setError(null);
 			} catch (err: any) {
 				console.error('Failed to update calendar details:', err);
@@ -161,7 +241,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 				setLoading(false);
 			}
 		},
-		[user, refreshUser] // Added refreshUser to dependencies
+		[user, refreshUser, updateCalendarSnapshot, markForRefresh]
 	);
 
 	const updateUserName = useCallback(async (name: string) => {
@@ -181,7 +261,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 		}
 	}, [user, refreshUser]);
 
-	const value = {
+	const value = useMemo(() => ({
 		user,
 		token,
 		loading,
@@ -191,8 +271,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
 		logoutUser,
 		refreshUser,
 		updateCalendarDetails,
-		updateUserName, // Added updateUserName to context value
-	};
+		updateCalendarSnapshot,
+		updateUserName,
+	}), [
+		user,
+		token,
+		loading,
+		error,
+		loginUser,
+		registerUser,
+		logoutUser,
+		refreshUser,
+		updateCalendarDetails,
+		updateCalendarSnapshot,
+		updateUserName,
+	]);
 
 	return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 }
