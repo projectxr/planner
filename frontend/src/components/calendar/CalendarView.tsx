@@ -244,63 +244,83 @@ export default function CalendarView({ className }: CalendarViewProps) {
 	}, [handleCloseContextMenu, closeAllModals, openAddModal]);
 	// END: Added event handlers from original SELECTION
 
-	const eventPropGetter = useCallback((event: CalendarEvent) => {
-		const calendarColor = event.color || 'rgb(49, 116, 173)';
-		
-		// Calculate minimum height based on content
-		const hasContent = Boolean(event.content?.trim());
-		const hasDescription = Boolean(event.description?.trim());
-		const contentHeight = hasContent ? 80 : hasDescription ? 40 : 30;
-		
-		return {
-			style: {
-				...getEventStyle(event),
-				backgroundColor: calendarColor,
-				borderColor: calendarColor,
-				// Ensure minimum height for content visibility in week view
-				minHeight: currentView === 'week' && !event.isAllDay ? `${contentHeight}px` : 'auto',
-				// Help with overflow handling
-				overflow: 'hidden',
-				// Ensure proper display for flex content
-				display: 'flex',
-				flexDirection: 'column' as const,
-			},
-			className: cn(
-				'transition-all duration-200 hover:shadow-lg',
-				event.isDone && 'opacity-75 rbc-event-done',
-				// Add specific classes for content-rich events
-				hasContent && 'rbc-event-has-content',
-				event.isAllDay && 'rbc-event-all-day'
-			),
-		};
-	}, [currentView]);
-	  
+	const eventPropGetter = useCallback(
+		(event: CalendarEvent) => {
+			const calendarColor = event.color || 'rgb(49, 116, 173)';
+
+			// Calculate minimum height based on content
+			const hasContent = Boolean(event.content?.trim());
+			const hasDescription = Boolean(event.description?.trim());
+			const contentHeight = hasContent ? 80 : hasDescription ? 40 : 30;
+
+			return {
+				style: {
+					...getEventStyle(event),
+					backgroundColor: calendarColor,
+					borderColor: calendarColor,
+					// Ensure minimum height for content visibility in week view
+					minHeight: currentView === 'week' && !event.isAllDay ? `${contentHeight}px` : 'auto',
+					// Help with overflow handling
+					overflow: 'hidden',
+					// Ensure proper display for flex content
+					display: 'flex',
+					flexDirection: 'column' as const,
+				},
+				className: cn(
+					'transition-all duration-200 hover:shadow-lg',
+					event.isDone && 'opacity-75 rbc-event-done',
+					// Add specific classes for content-rich events
+					hasContent && 'rbc-event-has-content',
+					event.isAllDay && 'rbc-event-all-day'
+				),
+			};
+		},
+		[currentView]
+	);
+
 	// Enhanced method to handle event container interactions with better MDX content scrolling support
-	const handleEventContainerClick = useCallback((event: CalendarEvent, e: React.SyntheticEvent<HTMLElement, Event>) => {
-		// Check if the click originated from within an MDX editor or scroll area
-		const target = e.target as HTMLElement;
-		const isEditingContent = target.closest('.mdxeditor-root-contenteditable, .mdx-content-wrapper');
-		const isScrollArea = target.closest('[data-radix-scroll-area-viewport]');
-		
-		if (isEditingContent || isScrollArea) {
-			// Don't trigger event selection when interacting with content or scroll area
-			e.stopPropagation();
-			
-			// Enable scrolling within the MDX content
-			const scrollArea = target.closest('.mdx-content-wrapper')?.querySelector('[data-radix-scroll-area-viewport]');
-			if (scrollArea && currentView === 'week') {
-				// Allow scrolling to propagate within the scroll area
-				scrollArea.addEventListener('wheel', (wheelEvent) => {
-					wheelEvent.stopPropagation();
-				}, { passive: false, once: true });
+	const handleEventContainerClick = useCallback(
+		(event: CalendarEvent, e: React.SyntheticEvent<HTMLElement, Event>) => {
+			// Check if the click originated from within an MDX editor or scroll area
+			const target = e.target as HTMLElement;
+			const isEditingContent = target.closest(
+				'.mdxeditor-root-contenteditable, .mdx-content-wrapper'
+			);
+			const isScrollArea = target.closest('[data-radix-scroll-area-viewport]');
+
+			if (isEditingContent || isScrollArea) {
+				// Don't trigger event selection when interacting with content or scroll area
+				e.stopPropagation();
+
+				// Enable scrolling within the MDX content
+				const scrollArea = target
+					.closest('.mdx-content-wrapper')
+					?.querySelector('[data-radix-scroll-area-viewport]');
+				if (scrollArea && currentView === 'week') {
+					// Allow scrolling to propagate within the scroll area
+					scrollArea.addEventListener(
+						'wheel',
+						wheelEvent => {
+							wheelEvent.stopPropagation();
+						},
+						{ passive: false, once: true }
+					);
+				}
+				return;
 			}
-			return;
-		}
-		
-		// Normal event selection behavior
-		handleSelectEvent(event);
-	}, [handleSelectEvent, currentView]);
-	  
+
+			// Check if the click is on the ActionsButton using the data attribute
+			const isActionsButton = target.closest('[data-actions-button="true"]');
+
+			// Only open modal if clicking on ActionsButton
+			if (isActionsButton) {
+				handleSelectEvent(event);
+			}
+
+			// For all other clicks, do nothing (don't open the modal)
+		},
+		[handleSelectEvent, currentView]
+	);
 
 	if (loading && !filteredEvents.length) {
 		return (
@@ -323,8 +343,6 @@ export default function CalendarView({ className }: CalendarViewProps) {
 			</div>
 		);
 	}
-
-	 
 
 	return (
 		<div className={cn('h-full flex flex-col', className)}>
@@ -352,7 +370,7 @@ export default function CalendarView({ className }: CalendarViewProps) {
 					onNavigate={setCurrentDate}
 					onView={setCurrentView as any}
 					selectable
-					allDayAccessor={(event: CalendarEvent) => event.isAllDay || false}  
+					allDayAccessor={(event: CalendarEvent) => event.isAllDay || false}
 					resizable
 					onDragStart={event => handleDragStart(event as any)}
 					onSelectEvent={handleEventContainerClick as any} // Use the new handler

@@ -47,22 +47,25 @@ export default function CustomEvent({
 	const [isContentExpanded, setIsContentExpanded] = useState(false);
 	const [contentError, setContentError] = useState<Error | null>(null);
 	const isEventUpdating = updatingEvents.has(event.id);
-	
+
 	// Function to handle content click and toggle expanded state
-	const handleContentClick = useCallback((e: React.MouseEvent) => {
-		// Only expand content in week view
-		if (view === 'week') {
-			// Capture the click and prevent it from reaching the calendar event handler
-			e.stopPropagation();
-			e.preventDefault();
-			
-			// Toggle expanded state using a function to avoid closure issues
-			setIsContentExpanded(prev => !prev);
-			
-			// Prevent any other handlers from processing this event
-			return false;
-		}
-	}, [view]);
+	const handleContentClick = useCallback(
+		(e: React.MouseEvent) => {
+			// Only expand content in week view
+			if (view === 'week') {
+				// Capture the click and prevent it from reaching the calendar event handler
+				e.stopPropagation();
+				e.preventDefault();
+
+				// Toggle expanded state using a function to avoid closure issues
+				setIsContentExpanded(prev => !prev);
+
+				// Prevent any other handlers from processing this event
+				return false;
+			}
+		},
+		[view]
+	);
 
 	const handleEdit = useCallback(() => {
 		if (onEdit) {
@@ -158,22 +161,25 @@ export default function CustomEvent({
 		endDrag();
 	}, [endDrag]);
 
-	const handleContentUpdate = useCallback(async (newContent: string) => {
-		if (newContent !== event.content) {
-			const updatedEvent = {
-				...event,
-				content: newContent,
-				updatedAt: new Date()
-			};
-			try {
-				await updateEvent(updatedEvent);
-				toast.success('Content updated');
-			} catch (error) {
-				console.error('Failed to update content:', error);
-				toast.error('Failed to update content');
+	const handleContentUpdate = useCallback(
+		async (newContent: string) => {
+			if (newContent !== event.content) {
+				const updatedEvent = {
+					...event,
+					content: newContent,
+					updatedAt: new Date(),
+				};
+				try {
+					await updateEvent(updatedEvent);
+					toast.success('Content updated');
+				} catch (error) {
+					console.error('Failed to update content:', error);
+					toast.error('Failed to update content');
+				}
 			}
-		}
-	}, [event, updateEvent]);
+		},
+		[event, updateEvent]
+	);
 
 	const handleContentError = useCallback((error: Error) => {
 		console.error('MDX content error:', error);
@@ -226,11 +232,9 @@ export default function CustomEvent({
 	const ActionsButton = ({
 		size = 'default',
 		event,
-		onAction,
 	}: {
 		size?: 'default' | 'small';
 		event: any;
-		onAction: any;
 	}) => {
 		return (
 			<Button
@@ -241,15 +245,14 @@ export default function CustomEvent({
 					size === 'small' ? 'h-4 w-4' : 'h-6 w-6'
 				)}
 				onClick={e => {
-					e.stopPropagation();
-					if (onAction) {
-						onAction(event);
-					}
+					// Don't stop propagation - let the calendar handle the click
+					// This allows the handleEventContainerClick to detect the ActionsButton click
 				}}
 				onMouseDown={e => {
 					e.stopPropagation();
 				}}
 				type='button'
+				data-actions-button='true'
 			>
 				<MoreHorizontal className={cn(size === 'small' ? 'h-3 w-3' : 'h-4 w-4')} />
 			</Button>
@@ -307,7 +310,7 @@ export default function CustomEvent({
 						</span>
 					)}
 
-					<div className="flex items-center gap-1 flex-1">
+					<div className='flex items-center gap-1 flex-1'>
 						<span
 							className={cn(
 								'font-medium truncate text-sm flex-1',
@@ -320,17 +323,13 @@ export default function CustomEvent({
 							<EventContentPreview
 								event={event}
 								onError={handleContentError}
-								buttonClassName="relative z-20"
+								buttonClassName='relative z-20'
 							/>
 						)}
 					</div>
 				</div>
 
-				<ActionsButton
-					event={event}
-					onAction={handleEdit}
-					size={event.isAllDay ? 'small' : 'default'}
-				/>
+				<ActionsButton event={event} size={event.isAllDay ? 'small' : 'default'} />
 			</div>
 		);
 	}
@@ -358,9 +357,9 @@ export default function CustomEvent({
 			onDoubleClick={handleDoubleClick}
 		>
 			<LoadingOverlay />
-	
+
 			{isEventUpdating && <div className='absolute inset-0 z-5 cursor-not-allowed' />}
-	
+
 			<div className='flex items-start justify-between gap-1'>
 				<div className='flex items-center gap-1 overflow-hidden flex-1'>
 					<Button
@@ -378,7 +377,7 @@ export default function CustomEvent({
 							<Square className='h-4 w-4 text-gray-300' />
 						)}
 					</Button>
-	
+
 					<div className='flex flex-col flex-1 min-w-0'>
 						<div className='flex items-center gap-1 flex-wrap'>
 							{!event.isAllDay && event.start && (
@@ -394,8 +393,8 @@ export default function CustomEvent({
 							)}
 							{hasRichContent && <FileText className='h-3 w-3 text-gray-300' />}
 						</div>
-	
-						<div className="flex items-center gap-1">
+
+						<div className='flex items-center gap-1'>
 							<span
 								className={cn(
 									'font-medium text-sm leading-tight',
@@ -405,7 +404,7 @@ export default function CustomEvent({
 								style={{
 									whiteSpace: event.isAllDay && view !== 'month' ? 'normal' : 'nowrap',
 									overflow: event.isAllDay && view !== 'month' ? 'visible' : 'hidden',
-									textOverflow: event.isAllDay && view !== 'month' ? 'initial' : 'ellipsis'
+									textOverflow: event.isAllDay && view !== 'month' ? 'initial' : 'ellipsis',
 								}}
 							>
 								{title}
@@ -413,110 +412,106 @@ export default function CustomEvent({
 						</div>
 					</div>
 				</div>
-	
+
 				<div className='flex items-center gap-1'>
-					<ActionsButton
-						event={event}
-						onAction={handleEdit}
-						size={event.isAllDay ? 'small' : 'default'}
-					/>
+					<ActionsButton event={event} size={event.isAllDay ? 'small' : 'default'} />
 				</div>
 			</div>
-	
+
 			<div className='flex-1 mt-1'>
 				{event.description && (!event.isAllDay || view === 'week') && (
 					<div className='text-xs text-gray-200 mt-1 line-clamp-2'>{event.description}</div>
 				)}
-	
-				{hasRichContent && event.content && !((view === 'week' && event.isAllDay)) && (
-					<div 
+
+				{hasRichContent && event.content && !(view === 'week' && event.isAllDay) && (
+					<div
 						className={cn(
 							'mt-2 transition-all',
 							view === 'month' ? 'hidden' : 'flex flex-col',
-							// Ensure proper height constraints for week view
 							event.isAllDay && view !== 'month' ? 'h-[90px]' : 'flex-1 min-h-0'
 						)}
 					>
-						<div className={cn(
-							"mdx-content-wrapper text-white/95 rounded-sm overflow-hidden",
-							view === 'week' ? 'flex flex-col h-full' : '',
-							event.isAllDay ? 'bg-white/5' : ''
-						)}>
+						<div
+							className={cn(
+								'mdx-content-wrapper text-white/95 rounded-sm overflow-hidden',
+								view === 'week' ? 'flex flex-col h-full' : '',
+								event.isAllDay ? 'bg-white/5' : ''
+							)}
+						>
 							{contentError ? (
-								<div className="text-xs text-yellow-300 p-2 bg-black/20 rounded">
+								<div className='text-xs text-yellow-300 p-2 bg-black/20 rounded'>
 									Content display error. Click edit to fix.
 								</div>
 							) : view === 'week' ? (
 								// Toggle between preview and editable content in week view
-								<div 
-									className="h-full w-full relative" 
+								<div
+									className='h-full w-full relative'
 									onClick={handleContentClick}
-									onMouseDown={(e) => e.stopPropagation()}
-									onMouseUp={(e) => e.stopPropagation()}
+									onMouseDown={e => e.stopPropagation()}
+									onMouseUp={e => e.stopPropagation()}
 								>
 									{isContentExpanded ? (
-										<div className="flex-1 h-full overflow-auto custom-thin-scrollbar">
-											<div className="flex-1 min-h-0 overflow-auto custom-thin-scrollbar"
-												style={{ 
-													maxHeight: 'clamp(100px, 30vh, 400px)' 
-												}}>
+										<div className='flex-1 h-full overflow-auto custom-thin-scrollbar'>
+											<div
+												className='flex-1 min-h-0 overflow-auto custom-thin-scrollbar'
+												style={{
+													maxHeight: 'clamp(100px, 30vh, 400px)',
+												}}
+											>
 												<MDXInlineEditor
 													content={event.content}
 													onChange={handleContentUpdate}
 													onError={handleContentError}
 													className={cn(
-														"mdx-event-content event-mdx-container",
-														"prose-sm prose-invert max-w-none",
-														"h-auto w-full"
+														'mdx-event-content event-mdx-container',
+														'prose-sm prose-invert max-w-none',
+														'h-auto w-full'
 													)}
-													minHeight="20px"
+													minHeight='20px'
 													maxHeight={undefined}
-													placeholder="Add notes..."
+													placeholder='Add notes...'
 												/>
-												<div 
-													className="absolute top-0.5 right-0.5 opacity-60 hover:opacity-100 transition-opacity"
-												>
+												<div className='absolute top-0.5 right-0.5 opacity-60 hover:opacity-100 transition-opacity'>
 													<div
-														className="p-0.5 rounded-sm bg-black/30 backdrop-blur-sm cursor-pointer hover:bg-black/40 transition-colors"
-														onClick={(e) => {
+														className='p-0.5 rounded-sm bg-black/30 backdrop-blur-sm cursor-pointer hover:bg-black/40 transition-colors'
+														onClick={e => {
 															e.stopPropagation();
 															e.preventDefault();
 															setIsContentExpanded(false);
 														}}
-														title="Collapse"
+														title='Collapse'
 													>
-														<Minimize2 className="h-2.5 w-2.5 text-white" />
+														<Minimize2 className='h-2.5 w-2.5 text-white' />
 													</div>
 												</div>
 											</div>
 										</div>
 									) : (
 										// Preview mode: Limited to 200 characters
-										<div 
-											className="p-1 text-xs cursor-pointer hover:bg-black/20 rounded transition-colors"
-											onClick={(e) => {
+										<div
+											className='p-1 text-xs cursor-pointer hover:bg-black/20 rounded transition-colors'
+											onClick={e => {
 												e.stopPropagation();
 												e.preventDefault();
 												setIsContentExpanded(true);
 											}}
 										>
-											<div className="mdx-event-preview prose-sm prose-invert max-w-none">
+											<div className='mdx-event-preview prose-sm prose-invert max-w-none'>
 												{event.content && (
 													<MDXEditorContext.Provider value={{ isEventCard: true }}>
 														<MDXViewer
-															content={event.content.length > 200 
-																? `${event.content.substring(0, 200)}...` 
-																: event.content
+															content={
+																event.content.length > 200
+																	? `${event.content.substring(0, 200)}...`
+																	: event.content
 															}
-															className="prose-sm prose-invert max-w-none"
+															className='prose-sm prose-invert max-w-none'
 														/>
 													</MDXEditorContext.Provider>
 												)}
 											</div>
-											<div 
-												className="flex items-center justify-center mt-1 opacity-70 hover:opacity-100 transition-opacity text-[9px] text-white/90"
-											>
-												<Maximize2 className="h-2.5 w-2.5 mr-0.5" />
+											<div className='flex items-center justify-center mt-1 opacity-70 hover:opacity-100 transition-opacity text-[9px] text-white/90'>
+												<Maximize2 className='h-2.5 w-2.5 mr-0.5' />
 												<span>Expand</span>
 											</div>
 										</div>
@@ -524,36 +519,35 @@ export default function CustomEvent({
 								</div>
 							) : (
 								// Non-week view (day view, etc.)
-								<div className="max-h-[200px] overflow-auto custom-thin-scrollbar">
-								<MDXEditorContext.Provider value={{ isEventCard: true }}>
-									<MDXInlineEditor
-										content={event.content}
-										onChange={handleContentUpdate}
-										onError={handleContentError}
-										className={cn(
-											"prose-sm prose-invert max-w-none"
-										)}
-										minHeight="auto"
-										maxHeight="200px"
-										placeholder="Add notes..."
-									/>
-								</MDXEditorContext.Provider>
-							</div>
+								<div className='max-h-[200px] overflow-auto custom-thin-scrollbar'>
+									<MDXEditorContext.Provider value={{ isEventCard: true }}>
+										<MDXInlineEditor
+											content={event.content}
+											onChange={handleContentUpdate}
+											onError={handleContentError}
+											className={cn('prose-sm prose-invert max-w-none')}
+											minHeight='auto'
+											maxHeight='200px'
+											placeholder='Add notes...'
+										/>
+									</MDXEditorContext.Provider>
+								</div>
 							)}
 						</div>
 					</div>
 				)}
-	
+
 				{event.location && (
 					<div className='flex items-center gap-1 text-xs text-gray-300 mt-1'>
 						<MapPin className='h-3 w-3' />
-						<span className={cn(
-							'truncate',
-							event.isAllDay && view !== 'month' && 'whitespace-normal'
-						)}>{event.location}</span>
+						<span
+							className={cn('truncate', event.isAllDay && view !== 'month' && 'whitespace-normal')}
+						>
+							{event.location}
+						</span>
 					</div>
 				)}
-	
+
 				{event.hasSubtasks && (
 					<div className='mt-1'>
 						<div className='flex items-center justify-between text-xs text-gray-300'>
@@ -571,7 +565,7 @@ export default function CustomEvent({
 					</div>
 				)}
 			</div>
-	
+
 			<div className='flex items-center justify-between mt-2 text-xs'>
 				<div className='flex items-center gap-1 flex-wrap'>
 					{event.priority && event.priority !== 'medium' && (
@@ -583,7 +577,7 @@ export default function CustomEvent({
 							{event.priority}
 						</Badge>
 					)}
-	
+
 					{event.tags &&
 						event.tags.slice(0, 2).map((tag, index) => (
 							<Badge
@@ -600,7 +594,7 @@ export default function CustomEvent({
 						</Badge>
 					)}
 				</div>
-	
+
 				{event.assignee && event.assignee.length > 0 && (
 					<div className='flex items-center gap-1'>
 						<Users className='h-3 w-3 text-gray-300' />
