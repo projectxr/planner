@@ -232,12 +232,13 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 						className='ml-2 hidden sm:flex'
 						onClick={onToggleSidebar}
 					>
-						Toggle Sidebar
+						<List className='h-4 w-4 mr-2' />
+						Tools
 					</Button>
 				</div>
 
-				{/* Search Bar */}
-				<div className='flex flex-1 max-w-md'>
+				{/* Search Bar - Hidden on mobile */}
+				<div className='hidden sm:flex flex-1 max-w-md'>
 					<form onSubmit={handleSearch} className='flex w-full'>
 						<div className='relative flex-1'>
 							<Search className='absolute left-2 top-2.5 h-4 w-4 text-muted-foreground' />

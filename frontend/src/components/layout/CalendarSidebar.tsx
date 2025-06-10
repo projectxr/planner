@@ -23,6 +23,7 @@ import {
 	Loader2,
 	Home,
 	ChevronRight,
+	ChevronLeft,
 	Star,
 	Archive,
 	Trash2,
@@ -56,7 +57,11 @@ type CalendarGroup = {
 	isExpanded: boolean;
 };
 
-export default function CalendarSidebar() {
+interface CalendarSidebarProps {
+	onToggleSidebar?: () => void;
+}
+
+export default function CalendarSidebar({ onToggleSidebar }: CalendarSidebarProps) {
 	const {
 		visibleCalendars, // Still needed for isVisible prop
 		// toggleCalendarVisibility, // Removed
@@ -216,18 +221,20 @@ export default function CalendarSidebar() {
 						{syncStatus === 'syncing' && <Loader2 className='h-4 w-4 animate-spin' />}
 					</h3>
 					<div className='flex gap-1'>
-						<Button
-							size='sm'
-							variant='ghost'
-							onClick={handleRefresh}
-							disabled={syncStatus === 'syncing'}
-							title='Refresh all calendars'
-						>
-							<Calendar className='h-4 w-4' />
-						</Button>
+						
 						<Button size='sm' onClick={handleCreateCalendar} title='Create new calendar'>
 							<Plus className='h-4 w-4' />
 						</Button>
+						{onToggleSidebar && (
+							<Button
+								size='sm'
+								variant='ghost'
+								onClick={onToggleSidebar}
+								title='Close sidebar'
+							>
+								<ChevronLeft className='h-4 w-4' />
+							</Button>
+						)}
 					</div>
 				</div>
 
@@ -567,7 +574,7 @@ interface CalendarItemProps {
 	calendar: MyCalendarItem;
 	isActive: boolean;
 	isVisible: boolean; // Still needed for styling
-	isFavorite: boolean; // Still needed for displaying star icon
+	isFavorite: boolean; // Still needed for displaying star <icon>
 	onNavigate: () => void;
 	onOpenSettings: () => void; // New prop
 	onRefresh: () => void;

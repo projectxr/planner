@@ -1,4 +1,4 @@
-import React, { useState, createContext, useCallback } from 'react';
+import React, { useState, createContext, useCallback, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import EventModal from '@/components/modals/EventModal';
@@ -18,12 +18,33 @@ export interface ModalControlContextType {
 export const ModalControlContext = createContext<ModalControlContextType | undefined>(undefined);
 
 const AuthenticatedLayout: React.FC = () => {
-	const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+	const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 	const [isEventModalOpen, setIsEventModalOpen] = useState(false);
 	const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | undefined>(undefined);
 	const [newEventRange, setNewEventRange] = useState<{ start?: Date; end?: Date } | undefined>(
 		undefined
 	);
+
+	// Set sidebar open state based on screen size
+	useEffect(() => {
+		// Check if screen is large (lg breakpoint is 1024px in Tailwind)
+		const mediaQuery = window.matchMedia('(min-width: 1024px)');
+		
+		// Set initial state
+		setIsSidebarOpen(mediaQuery.matches);
+		
+		// Listen for changes
+		const handleChange = (e: MediaQueryListEvent) => {
+			setIsSidebarOpen(e.matches);
+		};
+		
+		mediaQuery.addEventListener('change', handleChange);
+		
+		// Cleanup
+		return () => {
+			mediaQuery.removeEventListener('change', handleChange);
+		};
+	}, []);
 
 	const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
@@ -125,7 +146,7 @@ const AuthenticatedLayout: React.FC = () => {
 					onToggleSidebar={toggleSidebar}
 				/>
 				<div className='flex flex-1 overflow-hidden'>
-					{isSidebarOpen && <CalendarSidebar />}{' '}
+					{isSidebarOpen && <CalendarSidebar onToggleSidebar={toggleSidebar} />}{' '}
 					<main className='flex-1 overflow-y-auto p-0'>
 						<Outlet /> {/* Child routes will render here (e.g., CalendarView) */}
 					</main>

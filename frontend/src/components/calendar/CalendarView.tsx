@@ -45,7 +45,6 @@ const DragAndDropCalendar = withDragAndDrop(
 
 interface CalendarViewProps {
 	className?: string;
-	showSidebar?: boolean;
 }
 
 export default function CalendarView({ className }: CalendarViewProps) {
